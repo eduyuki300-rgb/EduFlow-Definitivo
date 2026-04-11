@@ -11,11 +11,7 @@ import { auth, db, loginWithGoogle, logout } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Task, Priority, Status, SubTask } from './types';
-import { GoogleGenAI } from '@google/genai';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
-
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const playSuccessSound = () => {
   try {
@@ -66,51 +62,16 @@ import { PomodoroWidget } from './components/PomodoroWidget';
 import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
 import { CloudRain, Snowflake, Droplets, Droplet } from 'lucide-react';
 
+import { useAuth } from './hooks/useAuth';
+import { useTasks } from './hooks/useTasks';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('hoje');
   const [bgEffect, setBgEffect] = useState<BgEffect>(() => (localStorage.getItem('eduflow_bgeffect') as BgEffect) || 'bubbles');
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthReady, setIsAuthReady] = useState(false);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { user, isAuthReady } = useAuth();
+  const { tasks } = useTasks(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthReady || !user) {
-      setTasks([]);
-      return;
-    }
-
-    const q = query(
-      collection(db, 'tasks'),
-      where('userId', '==', user.uid)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasksData: Task[] = [];
-      snapshot.forEach((doc) => {
-        tasksData.push({ id: doc.id, ...doc.data() } as Task);
-      });
-      tasksData.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
-      setTasks(tasksData);
-    }, (error) => {
-      console.error("Error fetching tasks:", error);
-    });
-
-    return () => unsubscribe();
-  }, [user, isAuthReady]);
 
   useEffect(() => {
     localStorage.setItem('eduflow_bgeffect', bgEffect);
@@ -399,15 +360,20 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
         })
       ];
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: contents,
-        config: {
-          responseMimeType: "application/json",
-        }
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents })
       });
 
-      const text = response.text;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro na API do Gemini');
+      }
+
+      const responseData = await response.json();
+      const text = responseData.text;
+      
       if (!text) throw new Error("Resposta vazia da IA");
       
       const data = JSON.parse(text);
