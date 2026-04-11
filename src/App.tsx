@@ -16,6 +16,32 @@ import { GoogleGenAI } from '@google/genai';
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const playSuccessSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); // C6
+    
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    console.error("Audio play failed", e);
+  }
+};
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -41,7 +67,7 @@ import { CloudRain, Snowflake, Droplets, Droplet } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('hoje');
-  const [bgEffect, setBgEffect] = useState<BgEffect>(() => (localStorage.getItem('eduflow_bgeffect') as BgEffect) || 'none');
+  const [bgEffect, setBgEffect] = useState<BgEffect>(() => (localStorage.getItem('eduflow_bgeffect') as BgEffect) || 'bubbles');
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -1023,17 +1049,27 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
 
   // Toggle subtask directly from card
   const toggleSubtaskItem = async (groupId: string, itemId: string) => {
+    let wasCompleted = false;
     const updatedSubtasks = task.subtasks.map(st => {
       if (st.id === groupId) {
         return {
           ...st,
-          items: st.items.map(item => item.id === itemId ? { ...item, completed: !item.completed } : item)
+          items: st.items.map(item => {
+            if (item.id === itemId) {
+              if (!item.completed) wasCompleted = true;
+              return { ...item, completed: !item.completed };
+            }
+            return item;
+          })
         };
       }
       return st;
     });
     try {
       await updateDoc(doc(db, 'tasks', task.id), { subtasks: updatedSubtasks, updatedAt: serverTimestamp() });
+      if (wasCompleted) {
+        playSuccessSound();
+      }
     } catch (error) {
       console.error("Error updating subtask", error);
     }
@@ -1053,6 +1089,9 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
     try {
       const newStatus = task.status === 'concluida' ? 'hoje' : 'concluida';
       await updateDoc(doc(db, 'tasks', task.id), { status: newStatus, updatedAt: serverTimestamp() });
+      if (newStatus === 'concluida') {
+        playSuccessSound();
+      }
     } catch (error) {
       console.error("Error toggling task status", error);
     }
@@ -1106,38 +1145,6 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
               Alta 🔥
             </span>
           )}
-          {task.difficulty > 0 && (
-            <div className="flex gap-0.5 ml-1">
-              {[...Array(task.difficulty)].map((_, i) => (
-                <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
-              ))}
-            </div>
-          )}
-          {(task.pomodoros > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 px-2.5 py-1 rounded-md flex items-center gap-1">
-              🍅 {task.pomodoros}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
-            </span>
-          )}
-          {task.tags && task.tags.map(tag => (
-            <span key={tag} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200 px-2.5 py-1 rounded-md flex items-center gap-1">
-              <Tag size={10} /> {tag}
-            </span>
-          ))}
-          {totalTime > 0 && (
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider bg-white border border-gray-200 px-2.5 py-1 rounded-md text-gray-600">
-              <span className="text-green-600" title="Tempo Líquido (Foco)">⏱️ {formatDuration(liquidTime)}</span>
-              <span className="text-gray-300">|</span>
-              <span className="text-gray-500" title="Tempo Total (Com pausas)">⏳ {formatDuration(totalTime)}</span>
-              {efficiency > 0 && (
-                <>
-                  <span className="text-gray-300">|</span>
-                  <span className={cn(efficiency >= 80 ? "text-green-600" : efficiency >= 50 ? "text-yellow-600" : "text-red-600")} title="Eficiência">
-                    ⚡ {efficiency}%
-                  </span>
-                </>
-              )}
-            </div>
-          )}
         </div>
         <button onClick={onEdit} className="text-gray-400 hover:text-text-main transition-colors p-1">
           <Pencil size={18} />
@@ -1150,11 +1157,49 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
           <button onClick={toggleTaskStatus} className={cn("mt-1 transition-colors shrink-0", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-500")}>
             {task.status === 'concluida' ? <CheckCircle2 size={24} /> : <Circle size={24} />}
           </button>
-          <h3 className={cn("font-bold text-lg leading-tight", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>{task.title}</h3>
+          <div className="flex flex-col gap-1.5">
+            <h3 className={cn("font-bold text-lg leading-tight", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>{task.title}</h3>
+            
+            {/* Always visible metrics & tags */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {task.difficulty > 0 && (
+                <div className="flex gap-0.5">
+                  {[...Array(task.difficulty)].map((_, i) => (
+                    <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+              )}
+              {(task.pomodoros > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  🍅 {task.pomodoros}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
+                </span>
+              )}
+              {task.tags && task.tags.map(tag => (
+                <span key={tag} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <Tag size={10} /> {tag}
+                </span>
+              ))}
+              {totalTime > 0 && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-gray-200 px-2 py-0.5 rounded-md text-gray-600">
+                  <span className="text-green-600" title="Tempo Líquido (Foco)">⏱️ {formatDuration(liquidTime)}</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="text-gray-500" title="Tempo Total (Com pausas)">⏳ {formatDuration(totalTime)}</span>
+                  {efficiency > 0 && (
+                    <>
+                      <span className="text-gray-300">|</span>
+                      <span className={cn(efficiency >= 80 ? "text-green-600" : efficiency >= 50 ? "text-yellow-600" : "text-red-600")} title="Eficiência">
+                        ⚡ {efficiency}%
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
         <button 
           onClick={() => setIsExpanded(!isExpanded)} 
-          className="p-1.5 rounded-full bg-white/50 hover:bg-white text-gray-400 hover:text-gray-600 transition-colors shadow-sm border border-gray-100 shrink-0"
+          className="p-1.5 rounded-full bg-white/50 hover:bg-white text-gray-400 hover:text-gray-600 transition-colors shadow-sm border border-gray-100 shrink-0 mt-1"
         >
           {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
