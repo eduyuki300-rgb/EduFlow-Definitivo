@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, Upload, Image as ImageIcon, Loader2, LayoutList, BarChart2, Sparkles, Tag, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, Upload, Image as ImageIcon, Loader2, LayoutList, BarChart2, Sparkles, Tag, Clock, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { auth, db, loginWithGoogle, logout } from './firebase';
@@ -12,6 +12,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Task, Priority, Status, SubTask } from './types';
 import { GoogleGenAI } from '@google/genai';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -198,7 +199,7 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto p-6 pb-24 relative">
         {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
-        {activeTab === 'semana' && <SemanaTab />}
+        {activeTab === 'semana' && <SemanaTab tasks={tasks} onEdit={openEditModal} />}
         {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
         {activeTab === 'historico' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
       </main>
@@ -1297,11 +1298,204 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
   );
 }
 
-function SemanaTab() {
+function SemanaTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
+  const [filterStatus, setFilterStatus] = useState<Status | 'all'>('all');
+  const [filterSubject, setFilterSubject] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const subjects = Array.from(new Set(tasks.map(t => t.subject)));
+
+  const filteredTasks = tasks.filter(task => {
+    if (filterStatus !== 'all' && task.status !== filterStatus) return false;
+    if (filterSubject !== 'all' && task.subject !== filterSubject) return false;
+    if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
+  const handleStatusChange = async (taskId: string, newStatus: Status) => {
+    try {
+      await updateDoc(doc(db, 'tasks', taskId), { status: newStatus, updatedAt: serverTimestamp() });
+      if (newStatus === 'concluida') {
+        playSuccessSound();
+      }
+    } catch (error) {
+      console.error("Error updating status", error);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center opacity-50">
-      <CalendarRange size={48} className="text-pastel-blue mb-4" />
-      <p className="font-medium">Visão Kanban em construção.</p>
+    <div className="flex flex-col h-full bg-white/50 rounded-3xl border border-white/60 shadow-sm overflow-hidden">
+      {/* Table Header & Filters */}
+      <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-center justify-between bg-white/40">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Buscar tarefas..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-pastel-blue bg-white"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+          <select 
+            value={filterStatus} 
+            onChange={(e) => setFilterStatus(e.target.value as Status | 'all')}
+            className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-gray-600 outline-none focus:border-pastel-blue cursor-pointer"
+          >
+            <option value="all">Todos os Status</option>
+            <option value="inbox">Inbox</option>
+            <option value="semana">A Fazer (Semana)</option>
+            <option value="hoje">Em Andamento (Hoje)</option>
+            <option value="concluida">Concluído</option>
+          </select>
+          <select 
+            value={filterSubject} 
+            onChange={(e) => setFilterSubject(e.target.value)}
+            className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-gray-600 outline-none focus:border-pastel-blue cursor-pointer"
+          >
+            <option value="all">Todas as Matérias</option>
+            {subjects.map(sub => (
+              <option key={sub} value={sub}>{sub}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Table Content */}
+      <div className="flex-1 overflow-auto">
+        <table className="w-full text-left border-collapse min-w-[800px]">
+          <thead>
+            <tr className="bg-gray-50/50 text-gray-500 text-xs uppercase tracking-wider">
+              <th className="p-4 font-medium rounded-tl-2xl">Status</th>
+              <th className="p-4 font-medium">Matéria</th>
+              <th className="p-4 font-medium">Título</th>
+              <th className="p-4 font-medium">Progresso</th>
+              <th className="p-4 font-medium">Dificuldade</th>
+              <th className="p-4 font-medium">Tempo</th>
+              <th className="p-4 font-medium text-right rounded-tr-2xl">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filteredTasks.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-gray-400">
+                  Nenhuma tarefa encontrada com os filtros atuais.
+                </td>
+              </tr>
+            ) : filteredTasks.map(task => {
+              const subjectInfo = SUBJECT_INFO[task.subject] || SUBJECT_INFO['Geral'];
+              
+              // Calculate progress
+              let totalItems = 0;
+              let completedItems = 0;
+              task.subtasks.forEach(st => {
+                st.items.forEach(item => {
+                  totalItems++;
+                  if (item.completed) completedItems++;
+                });
+              });
+              const progressPct = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+              return (
+                <tr key={task.id} className="hover:bg-white/60 transition-colors group">
+                  <td className="p-4">
+                    <select 
+                      value={task.status}
+                      onChange={(e) => handleStatusChange(task.id, e.target.value as Status)}
+                      className={cn(
+                        "text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md border outline-none cursor-pointer appearance-none",
+                        task.status === 'concluida' ? "bg-green-50 text-green-600 border-green-200" :
+                        task.status === 'hoje' ? "bg-orange-50 text-orange-600 border-orange-200" :
+                        task.status === 'semana' ? "bg-blue-50 text-blue-600 border-blue-200" :
+                        "bg-gray-50 text-gray-600 border-gray-200"
+                      )}
+                    >
+                      <option value="inbox">Inbox</option>
+                      <option value="semana">A Fazer</option>
+                      <option value="hoje">Em Andamento</option>
+                      <option value="concluida">Concluído</option>
+                    </select>
+                  </td>
+                  <td className="p-4">
+                    <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border inline-flex items-center gap-1 whitespace-nowrap", subjectInfo.tagColor)}>
+                      <span>{subjectInfo.emoji}</span> {task.subject}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <div className="font-medium text-gray-800 line-clamp-2">{task.title}</div>
+                    {task.tags && task.tags.length > 0 && (
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {task.tags.map(tag => (
+                          <span key={tag} className="text-[9px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {totalItems > 0 ? (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden w-24">
+                          <div 
+                            className={cn("h-full rounded-full transition-all", progressPct === 100 ? "bg-green-400" : "bg-pastel-blue")} 
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-gray-500">{completedItems}/{totalItems}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {task.difficulty > 0 ? (
+                      <div className="flex gap-0.5">
+                        {[...Array(task.difficulty)].map((_, i) => (
+                          <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="p-4">
+                    {(task.liquidTime && task.liquidTime > 0) ? (
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-bold text-green-600" title="Tempo Líquido">⏱️ {formatDuration(task.liquidTime)}</span>
+                        {task.totalTime && task.totalTime > task.liquidTime && (
+                          <span className="text-[10px] text-gray-400" title="Tempo Total">⏳ {formatDuration(task.totalTime)}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="p-4 text-right">
+                    <button 
+                      onClick={() => onEdit(task)}
+                      className="p-2 text-gray-400 hover:text-pastel-blue hover:bg-blue-50 rounded-lg transition-colors inline-flex"
+                      title="Editar Tarefa"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

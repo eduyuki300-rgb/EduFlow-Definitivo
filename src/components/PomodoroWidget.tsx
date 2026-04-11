@@ -22,6 +22,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   const [isMinimized, setIsMinimized] = useState(() => JSON.parse(localStorage.getItem('pomodoro_minimized') || 'false'));
   const [isOpen, setIsOpen] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string>(() => localStorage.getItem('pomodoro_taskId') || '');
   
   const [mode, setMode] = useState<TimerMode>(() => (localStorage.getItem('pomodoro_mode') as TimerMode) || 'idle');
@@ -140,8 +141,20 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
     }
   };
 
-  const handleEarlySave = async () => {
-    if (selectedTaskId && (liquidTimeElapsed > 0 || pauseTimeElapsed > 0)) {
+  const requestEarlySave = () => {
+    if (liquidTimeElapsed > 0 || pauseTimeElapsed > 0) {
+      // Pause timer while deciding
+      if (mode === 'focus') {
+        setMode('pause');
+      }
+      setShowStopConfirm(true);
+    } else {
+      resetTimer();
+    }
+  };
+
+  const confirmEarlySave = async (save: boolean) => {
+    if (save && selectedTaskId && (liquidTimeElapsed > 0 || pauseTimeElapsed > 0)) {
       try {
         await updateDoc(doc(db, 'tasks', selectedTaskId), {
           liquidTime: increment(liquidTimeElapsed),
@@ -152,6 +165,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
         console.error("Error saving early session:", error);
       }
     }
+    setShowStopConfirm(false);
     resetTimer();
   };
 
@@ -334,27 +348,47 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
             )}
 
             {/* Controls */}
-            <div className="flex items-center justify-center gap-3">
-              <button
-                onClick={toggleTimer}
-                className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-transform hover:scale-105",
-                  mode === 'focus' ? "bg-yellow-100 text-yellow-700" : "bg-orange-500 text-white"
-                )}
-              >
-                {mode === 'focus' ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
-              </button>
-              
-              {(mode !== 'idle' || liquidTimeElapsed > 0) && (
+            {!showStopConfirm ? (
+              <div className="flex items-center justify-center gap-3">
                 <button
-                  onClick={handleEarlySave}
-                  className="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
-                  title="Encerrar e Salvar"
+                  onClick={toggleTimer}
+                  className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center shadow-sm transition-transform hover:scale-105",
+                    mode === 'focus' ? "bg-yellow-100 text-yellow-700" : "bg-orange-500 text-white"
+                  )}
                 >
-                  <Save size={16} />
+                  {mode === 'focus' ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}
                 </button>
-              )}
-            </div>
+                
+                {(mode !== 'idle' || liquidTimeElapsed > 0) && (
+                  <button
+                    onClick={requestEarlySave}
+                    className="w-10 h-10 rounded-full bg-white border border-gray-200 text-gray-600 flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+                    title="Encerrar e Salvar"
+                  >
+                    <Save size={16} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 mt-2 bg-white/80 p-3 rounded-xl border border-orange-100 shadow-inner">
+                <p className="text-xs text-center font-medium text-gray-700">Deseja salvar o tempo registrado?</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => confirmEarlySave(false)}
+                    className="flex-1 py-1.5 px-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-xs font-bold transition-colors border border-red-100"
+                  >
+                    Descartar
+                  </button>
+                  <button
+                    onClick={() => confirmEarlySave(true)}
+                    className="flex-1 py-1.5 px-2 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg text-xs font-bold transition-colors border border-green-100"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         ) : (
           <motion.div
