@@ -1,0 +1,49 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['title', 'subject', 'priority', 'status', 'userId', 'createdAt']) &&
+             isValidString('title', 1, 150) &&
+             isValidString('subject', 1, 50) &&
+             data.priority in ['baixa', 'media', 'alta'] &&
+             data.status in ['inbox', 'hoje', 'semana', 'concluida'] &&
+             data.userId == request.auth.uid &&
+             data.createdAt is timestamp &&
+             (!('subtasks' in data) || data.subtasks is list) &&
+             (!('questionsTotal' in data) || data.questionsTotal is number) &&
+             (!('questionsCorrect' in data) || data.questionsCorrect is number) &&
+             (!('theoryCompleted' in data) || data.theoryCompleted is bool) &&
+             (!('flashcardsCompleted' in data) || data.flashcardsCompleted is bool) &&
+             (!('difficulty' in data) || data.difficulty is number) &&
+             (!('notes' in data) || data.notes is string);
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isAuthenticated() && 
+                    isValidTask(request.resource.data);
+                    
+      allow update: if isAuthenticated() && 
+                    resource.data.userId == request.auth.uid &&
+                    isValidTask(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+                    
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+  }
+}

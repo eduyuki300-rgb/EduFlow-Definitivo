@@ -1,0 +1,44 @@
+{
+  "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "Uma tarefa ou missão de estudo do usuário.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "O título ou descrição curta da tarefa."
+        },
+        "subject": {
+          "type": "string",
+          "description": "A matéria relacionada à tarefa (ex: Física, Matemática, Geral)."
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["baixa", "media", "alta"],
+          "description": "Nível de prioridade da tarefa."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["inbox", "hoje", "semana", "concluida"],
+          "description": "Onde a tarefa se encontra no fluxo GTD."
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID do usuário dono da tarefa."
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "Data de criação da tarefa."
+        }
+      },
+      "required": ["title", "subject", "priority", "status", "userId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "tasks/{taskId}": {
+      "schema": "Task",
+      "description": "Coleção de tarefas dos usuários."
+    }
+  }
+}
