@@ -23,14 +23,17 @@ async function startServer() {
     try {
       const { contents } = req.body;
       
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(500).json({ error: "GEMINI_API_KEY is not configured on the server." });
+      // Tenta usar a chave customizada primeiro, depois a padrão
+      const apiKey = process.env.CHAVE_CUSTOMIZADA || process.env.GEMINI_API_KEY;
+
+      if (!apiKey) {
+        return res.status(500).json({ error: "A chave da API não está configurada no servidor." });
       }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const ai = new GoogleGenAI({ apiKey: apiKey });
       
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3-flash-preview",
         contents: contents,
         config: {
           responseMimeType: "application/json",
@@ -43,6 +46,14 @@ async function startServer() {
       res.json({ text });
     } catch (error: any) {
       console.error("Gemini API Error:", error);
+      
+      // Handle specific API key errors
+      if (error.message && error.message.includes("API key not valid")) {
+        return res.status(400).json({ 
+          error: "A chave da API do Gemini é inválida. Por favor, verifique se você configurou a chave correta no painel de Secrets (Configurações) do AI Studio." 
+        });
+      }
+      
       res.status(500).json({ error: error.message || "Failed to process AI request" });
     }
   });
