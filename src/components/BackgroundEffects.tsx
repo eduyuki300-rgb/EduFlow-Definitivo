@@ -9,7 +9,7 @@ export function BackgroundEffects({ effect }: { effect: BgEffect }) {
   const items = Array.from({ length: 25 });
 
   return (
-    <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
       {items.map((_, i) => {
         const left = `${Math.random() * 100}%`;
         const delay = Math.random() * 5;

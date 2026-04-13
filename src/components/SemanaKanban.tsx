@@ -107,10 +107,11 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: {
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 rounded-2xl p-2 transition-colors overflow-y-auto custom-scrollbar",
+                          "flex-1 rounded-2xl p-2 transition-all overflow-y-auto custom-scrollbar kanban-column",
                           column.color,
-                          snapshot.isDraggingOver ? "ring-2 ring-pastel-blue/50 bg-opacity-80" : ""
+                          snapshot.isDraggingOver ? "ring-2 ring-pastel-blue/50 bg-opacity-80 shadow-inner" : "bg-opacity-40"
                         )}
+                        style={{ minHeight: '400px' }}
                       >
                         {columnTasks.map((task, index) => {
                           const info = subjectInfo[task.subject] || subjectInfo['Geral'];

@@ -124,41 +124,54 @@ export default function App() {
       <PomodoroWidget tasks={tasks} onEnterImmersive={setActiveFocusTask} />
 
       {/* Header */}
-      <header className="px-6 pt-10 pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 z-10 flex justify-between items-start">
+      <header className="px-6 pt-10 pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 z-10 flex justify-between items-start sticky top-0">
         <div>
-          <h1 className="text-2xl font-bold text-text-main capitalize">
-            {activeTab === 'hoje' ? 'Missões de Hoje' : activeTab}
-          </h1>
-          <p className="text-sm text-text-muted mt-1">
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-black text-text-main capitalize">
+              {activeTab === 'hoje' ? 'Missões de Hoje' : activeTab}
+            </h1>
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+              Online
+            </div>
+          </div>
+          <p className="text-sm text-text-muted">
             {activeTab === 'hoje' && 'Foco máximo. Um passo de cada vez.'}
             {activeTab === 'semana' && 'Visão geral da sua jornada.'}
             {activeTab === 'inbox' && 'Despeje tudo aqui.'}
             {activeTab === 'historico' && 'Tudo que você já conquistou.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative group">
-            <button className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100">
-              {bgEffect === 'none' ? <Droplet size={20} className="opacity-50" /> : 
-               bgEffect === 'rain' ? <CloudRain size={20} className="text-blue-400" /> : 
-               bgEffect === 'snow' ? <Snowflake size={20} className="text-blue-200" /> : 
-               <Droplets size={20} className="text-blue-300" />}
-            </button>
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 shadow-lg rounded-xl p-1 hidden group-hover:flex flex-col gap-1 z-50">
-              <button onClick={() => setBgEffect('none')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'none' && "bg-gray-50 font-bold")}>Nenhum</button>
-              <button onClick={() => setBgEffect('rain')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'rain' && "bg-gray-50 font-bold")}>Chuva</button>
-              <button onClick={() => setBgEffect('snow')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'snow' && "bg-gray-50 font-bold")}>Neve</button>
-              <button onClick={() => setBgEffect('bubbles')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'bubbles' && "bg-gray-50 font-bold")}>Bolhas</button>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="hidden md:flex flex-col items-end mr-2">
+            <span className="text-xs font-bold text-text-main">{user.displayName || 'Estudante'}</span>
+            <span className="text-[10px] text-text-muted">{user.email}</span>
           </div>
-          <button onClick={logout} className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100">
-            <LogOut size={20} />
-          </button>
+          <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-full">
+            <div className="relative group">
+              <button className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-white shadow-sm">
+                {bgEffect === 'none' ? <Droplet size={18} className="opacity-50" /> : 
+                 bgEffect === 'rain' ? <CloudRain size={18} className="text-blue-400" /> : 
+                 bgEffect === 'snow' ? <Snowflake size={18} className="text-blue-200" /> : 
+                 <Droplets size={18} className="text-blue-300" />}
+              </button>
+              <div className="absolute right-0 top-full mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl p-2 hidden group-hover:flex flex-col gap-1 z-50 min-w-[120px] animate-in fade-in slide-in-from-top-2 duration-200">
+                <p className="text-[10px] font-bold text-gray-400 px-2 py-1 uppercase tracking-widest">Efeitos</p>
+                <button onClick={() => setBgEffect('none')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'none' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Nenhum</button>
+                <button onClick={() => setBgEffect('rain')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'rain' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Chuva</button>
+                <button onClick={() => setBgEffect('snow')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'snow' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Neve</button>
+                <button onClick={() => setBgEffect('bubbles')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'bubbles' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Bolhas</button>
+              </div>
+            </div>
+            <button onClick={logout} className="p-2 text-text-muted hover:text-red-500 transition-colors rounded-full hover:bg-white shadow-sm" title="Sair">
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-6 pb-24 relative">
+      <main className="flex-1 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -185,7 +198,7 @@ export default function App() {
       </button>
 
       {/* Bottom Navigation Bar */}
-      <nav className="absolute bottom-0 w-full bg-white border-t border-gray-100 px-6 py-4 pb-8 sm:pb-4 flex justify-between items-center z-20 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      <nav className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-2xl bg-white/90 backdrop-blur-xl border border-white/20 px-6 py-3 flex justify-between items-center z-20 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -193,27 +206,27 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex flex-col items-center justify-center gap-1 w-14 transition-transform active:scale-95"
+              className="flex flex-col items-center justify-center gap-1 w-14 transition-all active:scale-90 group"
             >
               <div
                 className={cn(
                   "p-2 rounded-2xl transition-all duration-300",
-                  isActive ? "bg-gray-100 shadow-sm scale-110" : "bg-transparent"
+                  isActive ? "bg-gray-100 shadow-sm scale-110" : "bg-transparent group-hover:bg-gray-50"
                 )}
               >
                 <Icon
-                  size={24}
+                  size={22}
                   strokeWidth={isActive ? 2.5 : 2}
                   className={cn(
                     "transition-colors duration-300",
-                    isActive ? "text-text-main" : "text-text-muted"
+                    isActive ? "text-text-main" : "text-text-muted group-hover:text-text-main"
                   )}
                 />
               </div>
               <span
                 className={cn(
-                  "text-[10px] font-semibold transition-all duration-300",
-                  isActive ? "text-text-main opacity-100" : "text-text-muted opacity-0 translate-y-1"
+                  "text-[9px] font-bold transition-all duration-300 uppercase tracking-tighter",
+                  isActive ? "text-text-main opacity-100" : "text-text-muted opacity-0 translate-y-1 group-hover:opacity-50"
                 )}
               >
                 {tab.label}
@@ -980,7 +993,7 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
 
   if (hojeTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center">
+      <div className="flex flex-col items-center justify-center h-full text-center py-20">
         <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-orange-100">
           <CalendarDays size={40} className="text-orange-400" />
         </div>
@@ -991,7 +1004,7 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
   }
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
       {hojeTasks.map(task => (
         <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
       ))}
@@ -1012,7 +1025,7 @@ function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => vo
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-4 max-w-2xl mx-auto w-full">
+      <div className="flex-1 overflow-y-auto w-full">
         {inboxTasks.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center mt-20">
             <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-200">
@@ -1022,17 +1035,19 @@ function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => vo
             <p className="text-gray-500 max-w-xs">Sua caixa de entrada está vazia. Use o botão + para adicionar novas ideias ou tarefas.</p>
           </div>
         ) : (
-          inboxTasks.map(task => (
-            <div key={task.id} className="relative">
-              <TaskCard task={task} onEdit={() => onEdit(task)} />
-              <button
-                onClick={() => moveToHoje(task)}
-                className="absolute top-4 right-12 text-xs font-bold bg-pastel-peach/50 text-orange-800 px-3 py-1.5 rounded-lg hover:bg-pastel-peach transition-colors"
-              >
-                Mover p/ Hoje
-              </button>
-            </div>
-          ))
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
+            {inboxTasks.map(task => (
+              <div key={task.id} className="relative group">
+                <TaskCard task={task} onEdit={() => onEdit(task)} />
+                <button
+                  onClick={() => moveToHoje(task)}
+                  className="absolute top-4 right-12 text-[10px] font-bold bg-pastel-peach/50 text-orange-800 px-2 py-1 rounded-lg hover:bg-pastel-peach transition-all opacity-0 group-hover:opacity-100"
+                >
+                  Mover p/ Hoje
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -1141,7 +1156,7 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
             </span>
           )}
         </div>
-        <button onClick={onEdit} className="text-gray-400 hover:text-text-main transition-colors p-1">
+        <button onClick={onEdit} className="text-gray-300 hover:text-pastel-blue transition-all p-1.5 hover:bg-pastel-blue/10 rounded-lg">
           <Pencil size={18} />
         </button>
       </div>
@@ -1299,7 +1314,7 @@ function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) =
 
   if (completedTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center opacity-50">
+      <div className="flex flex-col items-center justify-center h-full text-center opacity-50 py-20">
         <History size={48} className="text-pastel-cream mb-4" />
         <p className="font-medium">Seu histórico de conquistas está vazio.</p>
         <p className="text-sm mt-2">Conclua tarefas para vê-las aqui.</p>
@@ -1308,7 +1323,7 @@ function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) =
   }
 
   return (
-    <div className="space-y-4 pb-20 max-w-2xl mx-auto">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto pb-20">
       {completedTasks.map(task => (
         <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
       ))}

@@ -27,6 +27,12 @@ export function PomodoroWidget({ tasks, onEnterImmersive }: PomodoroWidgetProps)
   const activeTasks = tasks.filter(t => t.status !== 'concluida');
 
   useEffect(() => {
+    if (!isRunning) {
+      setTimeLeft(mode === 'focus' ? 25 * 60 : 5 * 60);
+    }
+  }, [mode, isRunning]);
+
+  useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
