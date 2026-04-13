@@ -1,18 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Play,
-  Pause,
-  Square,
-  Settings,
-  X,
-  Coffee,
-  CheckCircle2,
-  Minimize2,
-  ChevronDown,
-  ChevronUp,
-  CheckSquare,
-  Square as SquareIcon,
+  Play, Pause, Square, Settings, X, Coffee, CheckCircle2, Minimize2,
+  ChevronDown, ChevronUp, CheckSquare, Square as SquareIcon,
+  Volume2, VolumeX, RotateCcw, SkipForward,
 } from 'lucide-react';
 import { Task } from '../types';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
@@ -20,30 +11,210 @@ import { db } from '../firebase';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { SUBJECT_INFO } from '../constants/subjects';
-import type { FocusSessionApi, FocusTheme } from '../hooks/useFocusSession';
+import type { FocusSessionApi } from '../hooks/useFocusSession';
 import { useFocusSession } from '../hooks/useFocusSession';
 import { FocusMiniPlayer } from './FocusMiniPlayer';
+import { useAmbientSound, AMBIENT_SOUNDS, type AmbientSoundType } from '../hooks/useAmbientSound';
 
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
-const SUBJECT_TOP_GLOW: Record<string, string> = {
-  Geral: 'bg-slate-400/25',
-  Biologia: 'bg-emerald-500/30',
-  Física: 'bg-sky-500/30',
-  Química: 'bg-violet-500/30',
-  Matemática: 'bg-rose-500/35',
-  Linguagens: 'bg-amber-400/25',
-  Humanas: 'bg-orange-500/25',
-  Redação: 'bg-teal-500/28',
-};
+// ─── SCENE CONFIG ───────────────────────────────────────────────────
+
+export type SceneId = 'night' | 'ocean' | 'forest' | 'sunset' | 'lofi' | 'fireplace';
+
+interface SceneInfo { id: SceneId; label: string; emoji: string; gradient: string; particle: 'stars' | 'bubbles' | 'leaves' | 'embers' | 'bokeh' | 'waves'; }
+
+const SCENES: SceneInfo[] = [
+  { id: 'night',     label: 'Noite',       emoji: '🌌', gradient: 'linear-gradient(180deg, #08081a 0%, #141432 35%, #1e1e4a 65%, #0a0a1a 100%)', particle: 'stars' },
+  { id: 'ocean',     label: 'Oceano',      emoji: '🌊', gradient: 'linear-gradient(180deg, #0a1628 0%, #0f2847 30%, #164564 60%, #0a2840 100%)', particle: 'waves' },
+  { id: 'forest',    label: 'Floresta',    emoji: '🌲', gradient: 'linear-gradient(180deg, #060f08 0%, #0f2014 35%, #1a3520 65%, #0a1a0c 100%)', particle: 'leaves' },
+  { id: 'sunset',    label: 'Pôr do sol',  emoji: '🌅', gradient: 'linear-gradient(180deg, #1a0a2e 0%, #4a1942 25%, #c44a4a 55%, #e8964a 80%, #fcd34d 100%)', particle: 'embers' },
+  { id: 'lofi',      label: 'Lo-fi',       emoji: '☕', gradient: 'linear-gradient(135deg, #1a0a30 0%, #2d1b50 40%, #1a1040 70%, #0f0820 100%)', particle: 'bokeh' },
+  { id: 'fireplace', label: 'Lareira',     emoji: '🔥', gradient: 'linear-gradient(180deg, #0f0805 0%, #2a1008 30%, #451a0a 60%, #1a0a05 100%)', particle: 'embers' },
+];
+
+// ─── ACCENT COLORS ──────────────────────────────────────────────────
+
+interface AccentColor { id: string; hex: string; label: string; }
+
+const ACCENT_COLORS: AccentColor[] = [
+  { id: 'white',   hex: '#ffffff', label: 'Branco' },
+  { id: 'blue',    hex: '#60a5fa', label: 'Azul' },
+  { id: 'purple',  hex: '#a78bfa', label: 'Roxo' },
+  { id: 'emerald', hex: '#34d399', label: 'Verde' },
+  { id: 'rose',    hex: '#fb7185', label: 'Rosa' },
+  { id: 'amber',   hex: '#fbbf24', label: 'Âmbar' },
+  { id: 'cyan',    hex: '#22d3ee', label: 'Ciano' },
+];
+
+// ─── PERSISTENCE ────────────────────────────────────────────────────
+
+const readLS = (k: string, def: string) => { try { return localStorage.getItem(k) ?? def; } catch { return def; } };
+const writeLS = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch {} };
+
+// ─── HELPERS ────────────────────────────────────────────────────────
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
+
+function seededRandom(i: number, salt: number) {
+  const x = Math.sin(i * 83492791 + salt * 2654435761) * 10000;
+  return x - Math.floor(x);
+}
+
+// ─── SCENE PARTICLES ────────────────────────────────────────────────
+
+function SceneParticles({ type }: { type: SceneInfo['particle'] }) {
+  const particles = useMemo(() =>
+    Array.from({ length: type === 'bokeh' ? 12 : 35 }, (_, i) => ({
+      left: `${seededRandom(i, 1) * 100}%`,
+      top: `${seededRandom(i, 2) * 100}%`,
+      size: type === 'bokeh' ? 40 + seededRandom(i, 3) * 80 : 1.5 + seededRandom(i, 3) * 3,
+      delay: seededRandom(i, 4) * 12,
+      duration: type === 'stars' ? 3 + seededRandom(i, 5) * 6 : 8 + seededRandom(i, 5) * 14,
+      opacity: 0.3 + seededRandom(i, 6) * 0.7,
+    })),
+  [type]);
+
+  if (type === 'stars') return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p, i) => (
+        <div key={i} className="absolute rounded-full bg-white" style={{
+          left: p.left, top: p.top, width: p.size, height: p.size,
+          animation: `twinkle ${p.duration}s ${p.delay}s infinite ease-in-out`,
+        }} />
+      ))}
+    </div>
+  );
+
+  if (type === 'embers') return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.slice(0, 20).map((p, i) => (
+        <div key={i} className="absolute bottom-0 rounded-full bg-orange-400/80" style={{
+          left: p.left, width: p.size * 1.5, height: p.size * 1.5,
+          animation: `float-up ${p.duration}s ${p.delay}s infinite linear`,
+        }} />
+      ))}
+    </div>
+  );
+
+  if (type === 'leaves') return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.slice(0, 15).map((p, i) => (
+        <div key={i} className="absolute rounded-full bg-emerald-400/40" style={{
+          left: p.left, top: p.top, width: p.size * 2.5, height: p.size * 2.5,
+          animation: `drift-slow ${p.duration}s ${p.delay}s infinite ease-in-out`,
+        }} />
+      ))}
+    </div>
+  );
+
+  if (type === 'waves') return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {[0.3, 0.5, 0.7].map((top, i) => (
+        <div key={i} className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent" style={{
+          top: `${top * 100}%`,
+          animation: `wave-pulse ${6 + i * 2}s ${i * 1.5}s infinite ease-in-out`,
+        }} />
+      ))}
+    </div>
+  );
+
+  if (type === 'bokeh') return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.map((p, i) => (
+        <div key={i} className="absolute rounded-full bg-purple-300/10 backdrop-blur-[1px]" style={{
+          left: p.left, top: p.top, width: p.size, height: p.size,
+          animation: `bokeh-float ${p.duration}s ${p.delay}s infinite ease-in-out`,
+        }} />
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {particles.slice(0, 20).map((p, i) => (
+        <div key={i} className="absolute bottom-0 rounded-full bg-orange-400/60" style={{
+          left: p.left, width: p.size * 1.5, height: p.size * 1.5,
+          animation: `float-up ${p.duration}s ${p.delay}s infinite linear`,
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// ─── SETTINGS DRAWER ────────────────────────────────────────────────
+
+interface SettingsDrawerProps {
+  mode: string; setMode: (m: any) => void;
+  focusDuration: number; setFocusDuration: (v: number) => void;
+  breakDuration: number; setBreakDuration: (v: number) => void;
+  accentHex: string; setAccentId: (id: string) => void;
+  panelOpacity: number; setPanelOpacity: (v: number) => void;
+  onClose: () => void;
+}
+
+function SettingsDrawer({ mode, setMode, focusDuration, setFocusDuration, breakDuration, setBreakDuration, accentHex, setAccentId, panelOpacity, setPanelOpacity, onClose }: SettingsDrawerProps) {
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[130] bg-black/40" onClick={onClose} />
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+        className="fixed bottom-0 left-0 right-0 z-[140] max-h-[75dvh] overflow-y-auto rounded-t-3xl border-t border-white/10 bg-slate-900/95 backdrop-blur-2xl p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] custom-scrollbar"
+      >
+        <div className="mx-auto w-12 h-1 rounded-full bg-white/20 mb-6" />
+        <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 mb-5">Configurações</h3>
+
+        {/* Timer Mode */}
+        <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 block mb-2">Modo</label>
+        <div className="flex rounded-xl bg-black/30 p-1 mb-5">
+          <button onClick={() => setMode('pomodoro')} className={cn('flex-1 rounded-lg py-2 text-sm font-semibold transition-colors', mode === 'pomodoro' ? 'bg-white/15 text-white' : 'text-white/50')}>Pomodoro</button>
+          <button onClick={() => setMode('stopwatch')} className={cn('flex-1 rounded-lg py-2 text-sm font-semibold transition-colors', mode === 'stopwatch' ? 'bg-white/15 text-white' : 'text-white/50')}>Cronômetro</button>
+        </div>
+
+        {/* Durations */}
+        {mode === 'pomodoro' && (
+          <div className="flex gap-3 mb-5">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 block mb-2">Foco (min)</label>
+              <input type="number" value={focusDuration / 60} onChange={(e) => setFocusDuration((parseInt(e.target.value, 10) || 25) * 60)}
+                className="w-full rounded-xl border border-white/10 bg-black/30 p-2.5 text-center text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-white/20" />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 block mb-2">Pausa (min)</label>
+              <input type="number" value={breakDuration / 60} onChange={(e) => setBreakDuration((parseInt(e.target.value, 10) || 5) * 60)}
+                className="w-full rounded-xl border border-white/10 bg-black/30 p-2.5 text-center text-sm font-semibold text-white outline-none focus:ring-2 focus:ring-white/20" />
+            </div>
+          </div>
+        )}
+
+        {/* Accent Color */}
+        <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 block mb-2">Cor do timer</label>
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {ACCENT_COLORS.map(c => (
+            <button key={c.id} onClick={() => setAccentId(c.id)} title={c.label}
+              className={cn('w-8 h-8 rounded-full border-2 transition-transform hover:scale-110', accentHex === c.hex ? 'border-white scale-110 shadow-lg' : 'border-white/20')}
+              style={{ background: c.hex }} />
+          ))}
+        </div>
+
+        {/* Panel Opacity */}
+        <label className="text-[10px] font-bold uppercase tracking-wider text-white/40 block mb-2">Opacidade dos painéis</label>
+        <input type="range" min="0.1" max="1" step="0.05" value={panelOpacity}
+          onChange={e => setPanelOpacity(parseFloat(e.target.value))}
+          className="w-full focus-range mb-1" />
+        <p className="text-[10px] text-white/30 mb-4">{Math.round(panelOpacity * 100)}%</p>
+      </motion.div>
+    </>
+  );
+}
+
+// ─── FOCUS MODE FULL ────────────────────────────────────────────────
 
 interface FocusModeFullProps {
   task: Task;
@@ -54,599 +225,310 @@ interface FocusModeFullProps {
 }
 
 function FocusModeFull({ task, session, onMinimize, onClose, playSuccessSound }: FocusModeFullProps) {
-  const {
-    mode,
-    setMode,
-    status,
-    theme,
-    setTheme,
-    focusDuration,
-    setFocusDuration,
-    breakDuration,
-    setBreakDuration,
-    timeLeft,
-    timeElapsed,
-    sessionLiquidTime,
-    toggleTimer,
-    resetTimer,
-    skipToComplete,
-    startBreak,
-    skipBreakNewFocus,
-  } = session;
+  const { mode, setMode, status, focusDuration, setFocusDuration, breakDuration, setBreakDuration,
+    timeLeft, timeElapsed, sessionLiquidTime, toggleTimer, resetTimer, skipToComplete, startBreak,
+    skipBreakNewFocus } = session;
 
+  // Visual state (persisted)
+  const [sceneId, setSceneId] = useState<SceneId>(() => readLS('eduflow_scene', 'night') as SceneId);
+  const [accentId, setAccentId] = useState(() => readLS('eduflow_accent', 'white'));
+  const [panelOpacity, setPanelOpacity] = useState(() => parseFloat(readLS('eduflow_panel_opacity', '0.55')));
   const [showSettings, setShowSettings] = useState(false);
-  const [checklistOpen, setChecklistOpen] = useState(true);
+  const [checklistOpen, setChecklistOpen] = useState(false);
 
+  // Ambient sound
+  const { soundType, setSoundType, volume, setVolume } = useAmbientSound();
+
+  // Persist visual prefs
+  const setScene = (id: SceneId) => { setSceneId(id); writeLS('eduflow_scene', id); };
+  const setAccent = (id: string) => { setAccentId(id); writeLS('eduflow_accent', id); };
+  const setOpacity = (v: number) => { setPanelOpacity(v); writeLS('eduflow_panel_opacity', String(v)); };
+
+  const scene = SCENES.find(s => s.id === sceneId) ?? SCENES[0];
+  const accent = ACCENT_COLORS.find(c => c.id === accentId) ?? ACCENT_COLORS[0];
   const subjectInfo = SUBJECT_INFO[task.subject] || SUBJECT_INFO.Geral;
-  const topGlow = SUBJECT_TOP_GLOW[task.subject] ?? SUBJECT_TOP_GLOW.Geral;
+
+  // Timer ring
+  const radius = 90;
+  const circumference = 2 * Math.PI * radius;
+  const progressTotal = mode === 'pomodoro' ? (status === 'break' || status === 'break-paused' ? breakDuration : focusDuration) : 1;
+  const progressValue = mode === 'pomodoro' ? timeLeft : 0;
+  const progressRatio = progressTotal > 0 ? progressValue / progressTotal : 0;
+  const strokeDashoffset = circumference * (1 - progressRatio);
+
+  const timerDisplay = formatTime(mode === 'pomodoro' ? timeLeft : timeElapsed);
+  const statusLabel = status === 'idle' ? 'Pronto para focar' : status === 'running' ? (mode === 'pomodoro' ? 'Foco profundo' : 'Cronômetro') : status === 'paused' ? 'Pausado' : (status === 'break' || status === 'break-paused') ? 'Pausa' : status === 'finished' ? 'Concluído' : '';
+
+  // Glass panel style
+  const glass: CSSProperties = {
+    background: `rgba(0, 0, 0, ${panelOpacity * 0.65})`,
+    border: `1px solid rgba(255,255,255, ${panelOpacity * 0.12})`,
+    backdropFilter: `blur(${Math.round(panelOpacity * 28)}px)`,
+    WebkitBackdropFilter: `blur(${Math.round(panelOpacity * 28)}px)`,
+  };
+
+  const handleCloseClick = async () => { await session.closeAfterPersist(); onClose(); };
+  const hasSubtasks = (task.subtasks?.length ?? 0) > 0;
 
   const toggleSubtaskItem = async (groupId: string, itemId: string) => {
     let wasCompleted = false;
-    const baseSubtasks = task.subtasks ?? [];
-    const updatedSubtasks = baseSubtasks.map((st) => {
-      if (st.id === groupId) {
-        return {
-          ...st,
-          items: st.items.map((item) => {
-            if (item.id === itemId) {
-              if (!item.completed) wasCompleted = true;
-              return { ...item, completed: !item.completed };
-            }
-            return item;
-          }),
-        };
-      }
+    const updated = (task.subtasks ?? []).map(st => {
+      if (st.id === groupId) return { ...st, items: st.items.map(item => {
+        if (item.id === itemId) { if (!item.completed) wasCompleted = true; return { ...item, completed: !item.completed }; }
+        return item;
+      }) };
       return st;
     });
     try {
-      await updateDoc(doc(db, 'tasks', task.id), { subtasks: updatedSubtasks, updatedAt: serverTimestamp() });
+      await updateDoc(doc(db, 'tasks', task.id), { subtasks: updated, updatedAt: serverTimestamp() });
       if (wasCompleted) playSuccessSound();
-    } catch (error) {
-      console.error('Error updating subtask', error);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  const shellClass = (() => {
-    switch (theme) {
-      case 'aurora':
-        return 'bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950 text-white';
-      case 'forest':
-        return 'bg-gradient-to-b from-stone-950 via-emerald-950/80 to-stone-950 text-emerald-50';
-      case 'minimal':
-        return 'bg-gradient-to-b from-stone-100 via-white to-stone-100 text-stone-900';
-      case 'midnight':
-      default:
-        return 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white';
-    }
-  })();
+  // Subtask progress
+  const totalItems = (task.subtasks ?? []).reduce((acc, g) => acc + (g.items?.length ?? 0), 0);
+  const doneItems = (task.subtasks ?? []).reduce((acc, g) => acc + (g.items?.filter(i => i.completed).length ?? 0), 0);
 
-  const isLight = theme === 'minimal';
-  const glassPanel = isLight
-    ? 'border-stone-200/80 bg-white/90 shadow-lg backdrop-blur-xl'
-    : 'border-white/10 bg-white/[0.06] shadow-[0_8px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl';
-  const subtleText = isLight ? 'text-stone-500' : 'text-white/55';
-  const ringColor = isLight ? 'text-pastel-blue' : 'text-white';
-  const secondaryControl = isLight
-    ? 'border border-stone-300/90 bg-white text-stone-700 shadow-sm hover:bg-stone-50'
-    : 'border border-white/35 bg-white/15 text-white shadow-[0_2px_12px_rgba(0,0,0,0.25)] hover:bg-white/25';
-
-  const subjectChipClass = isLight
-    ? cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold', subjectInfo.tagColor)
-    : 'inline-flex items-center gap-1 rounded-lg border border-white/25 bg-white/12 px-2.5 py-1 text-[11px] font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur-sm';
-
-  const progressTotal =
-    mode === 'pomodoro' ? (status === 'break' ? breakDuration : focusDuration) : 1;
-  const progressValue = mode === 'pomodoro' ? timeLeft : 0;
-  const progressRatio = mode === 'pomodoro' && progressTotal > 0 ? progressValue / progressTotal : 0;
-  const circumference = 2 * Math.PI * 168;
-  const strokeDashoffset = circumference * (1 - progressRatio);
-
-  const handleCloseClick = async () => {
-    await session.closeAfterPersist();
-    onClose();
-  };
-
-  const hasSubtasks = (task.subtasks?.length ?? 0) > 0;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-      className={cn(
-        'fixed inset-0 z-[100] flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden overscroll-none font-sans',
-        shellClass,
-      )}
-    >
-      {!isLight && (
-        <div
-          className={cn('pointer-events-none absolute -top-40 left-1/2 h-[28rem] w-[140%] -translate-x-1/2 rounded-full blur-[120px]', topGlow)}
-          aria-hidden
-        />
-      )}
-      {theme === 'aurora' && !isLight && (
-        <>
-          <motion.div
-            animate={{ x: ['-15%', '15%', '-15%'], opacity: [0.2, 0.35, 0.2] }}
-            transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
-            className="pointer-events-none absolute left-0 top-1/4 h-80 w-80 rounded-full bg-purple-500/20 blur-[100px]"
-            style={{ willChange: 'transform, opacity' }}
-          />
-          <motion.div
-            animate={{ x: ['15%', '-15%', '15%'], opacity: [0.15, 0.3, 0.15] }}
-            transition={{ duration: 22, repeat: Infinity, ease: 'linear' }}
-            className="pointer-events-none absolute bottom-1/4 right-0 h-96 w-96 rounded-full bg-teal-500/15 blur-[110px]"
-            style={{ willChange: 'transform, opacity' }}
-          />
-        </>
-      )}
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-0',
-          isLight
-            ? 'bg-[radial-gradient(ellipse_75%_60%_at_50%_100%,transparent,rgba(0,0,0,0.04))]'
-            : 'bg-[radial-gradient(ellipse_70%_55%_at_50%_100%,transparent,rgba(0,0,0,0.5))]',
-        )}
-        aria-hidden
-      />
-
-      <header className="relative z-20 mx-auto flex w-full max-w-3xl shrink-0 items-start justify-between gap-3 px-5 pb-2 pt-[max(0.75rem,env(safe-area-inset-top,0px))] sm:gap-4 sm:px-8 sm:pb-3 sm:pt-6">
-        <div className={cn('min-w-0 flex-1 rounded-2xl border px-3 py-2.5 sm:px-5 sm:py-4', glassPanel)}>
-          <p className={cn('text-[10px] font-bold uppercase tracking-[0.2em]', subtleText)}>Focando em</p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className={subjectChipClass}>
-              <span>{subjectInfo.emoji}</span>
-              {task.subject}
-            </span>
+  // ─── FINISHED STATE ─────────────────────────────────────────────
+  if (status === 'finished') {
+    return (
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[100] flex h-[100dvh] flex-col items-center justify-center overflow-hidden text-white"
+        style={{ background: scene.gradient }}>
+        <SceneParticles type={scene.particle} />
+        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          className="relative z-10 flex flex-col items-center px-6 text-center">
+          <CheckCircle2 size={80} className="text-emerald-400 mb-6 drop-shadow-lg" />
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Foco concluído!</h2>
+          <p className="mt-2 text-sm text-white/50">O que deseja fazer agora?</p>
+          <div className="mt-10 flex w-full max-w-xs flex-col gap-3">
+            <button onClick={startBreak} className="flex items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold bg-white text-slate-900 shadow-xl hover:scale-[1.02] transition-transform">
+              <Coffee size={18} /> Pausa curta
+            </button>
+            <button onClick={skipBreakNewFocus} className="rounded-2xl py-3 text-base font-semibold bg-white/10 hover:bg-white/15 transition-colors">
+              Novo foco (pular pausa)
+            </button>
+            <button onClick={handleCloseClick} className="py-3 text-sm text-white/40 hover:text-white/70 transition-colors">Sair</button>
           </div>
-          <h2 className="mt-1.5 line-clamp-2 text-base font-bold leading-snug tracking-tight sm:mt-2 sm:text-2xl">
-            {task.title}
-          </h2>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // ─── MAIN RENDER ────────────────────────────────────────────────
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden overscroll-none font-sans text-white">
+
+      {/* ── BACKGROUND ── */}
+      <div className="absolute inset-0" style={{ background: scene.gradient }} />
+      <SceneParticles type={scene.particle} />
+
+      {/* ── HEADER ── */}
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 sm:px-6 sm:pt-5 sm:pb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-[11px] font-bold backdrop-blur-sm">
+            {subjectInfo.emoji}
+            <span className="hidden sm:inline">{task.subject}</span>
+          </span>
+          <h2 className="truncate text-sm sm:text-base font-bold leading-tight">{task.title}</h2>
         </div>
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <button
-            type="button"
-            onClick={() => setShowSettings((v) => !v)}
-            className={cn(
-              'rounded-full p-2.5 transition-colors sm:p-3',
-              isLight ? 'text-stone-600 hover:bg-stone-200/80' : 'text-white/80 hover:bg-white/10',
-            )}
-            aria-expanded={showSettings}
-            aria-label="Configurações do timer"
-          >
-            <Settings size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={onMinimize}
-            className={cn(
-              'rounded-full p-2.5 transition-colors sm:p-3',
-              isLight ? 'text-stone-600 hover:bg-stone-200/80' : 'text-white/80 hover:bg-white/10',
-            )}
-            aria-label="Minimizar para mini player"
-            title="Minimizar"
-          >
-            <Minimize2 size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={handleCloseClick}
-            className={cn(
-              'rounded-full p-2.5 transition-colors sm:p-3',
-              isLight ? 'text-stone-600 hover:bg-stone-200/80' : 'text-white/80 hover:bg-white/10',
-            )}
-            aria-label="Fechar sessão de foco"
-          >
-            <X size={22} />
-          </button>
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => setShowSettings(true)} className="rounded-full p-2.5 text-white/70 hover:bg-white/10 transition-colors"><Settings size={18} /></button>
+          <button onClick={onMinimize} className="rounded-full p-2.5 text-white/70 hover:bg-white/10 transition-colors"><Minimize2 size={18} /></button>
+          <button onClick={handleCloseClick} className="rounded-full p-2.5 text-white/70 hover:bg-white/10 transition-colors"><X size={20} /></button>
         </div>
       </header>
 
-      <AnimatePresence>
-        {showSettings && (
-          <>
-            <motion.button
-              type="button"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[110] bg-black/30"
-              aria-label="Fechar configurações"
-              onClick={() => setShowSettings(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 24 }}
-              transition={{ duration: 0.22 }}
-              className={cn(
-                'fixed z-[120] max-h-[min(70dvh,28rem)] w-full overflow-y-auto border-t p-5 shadow-2xl sm:absolute sm:right-6 sm:top-24 sm:mt-0 sm:w-80 sm:rounded-2xl sm:border',
-                'bottom-0 left-0 right-0 sm:bottom-auto',
-                glassPanel,
-                isLight ? 'sm:border-stone-200' : 'sm:border-white/10',
-              )}
-            >
-              <h3 className={cn('mb-5 text-xs font-bold uppercase tracking-widest', subtleText)}>Configurações</h3>
-              <div className="space-y-5">
-                <div>
-                  <label className={cn('mb-2 block text-xs font-medium', subtleText)}>Modo</label>
-                  <div className={cn('flex rounded-xl p-1', isLight ? 'bg-stone-100' : 'bg-black/35')}>
-                    <button
-                      type="button"
-                      onClick={() => setMode('pomodoro')}
-                      className={cn(
-                        'flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors',
-                        mode === 'pomodoro'
-                          ? isLight
-                            ? 'bg-white shadow-sm'
-                            : 'bg-white/20 text-white'
-                          : 'opacity-60 hover:opacity-100',
-                      )}
-                    >
-                      Pomodoro
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode('stopwatch')}
-                      className={cn(
-                        'flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors',
-                        mode === 'stopwatch'
-                          ? isLight
-                            ? 'bg-white shadow-sm'
-                            : 'bg-white/20 text-white'
-                          : 'opacity-60 hover:opacity-100',
-                      )}
-                    >
-                      Cronômetro
-                    </button>
-                  </div>
-                </div>
-                {mode === 'pomodoro' && (
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <label className={cn('mb-2 block text-xs font-medium', subtleText)}>Foco (min)</label>
-                      <input
-                        type="number"
-                        value={focusDuration / 60}
-                        onChange={(e) => setFocusDuration((parseInt(e.target.value, 10) || 25) * 60)}
-                        className={cn(
-                          'w-full rounded-xl border p-2.5 text-center text-sm font-semibold outline-none focus:ring-2',
-                          isLight
-                            ? 'border-stone-200 bg-white focus:ring-pastel-blue/40'
-                            : 'border-white/15 bg-black/30 focus:ring-white/30',
-                        )}
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className={cn('mb-2 block text-xs font-medium', subtleText)}>Pausa (min)</label>
-                      <input
-                        type="number"
-                        value={breakDuration / 60}
-                        onChange={(e) => setBreakDuration((parseInt(e.target.value, 10) || 5) * 60)}
-                        className={cn(
-                          'w-full rounded-xl border p-2.5 text-center text-sm font-semibold outline-none focus:ring-2',
-                          isLight
-                            ? 'border-stone-200 bg-white focus:ring-pastel-blue/40'
-                            : 'border-white/15 bg-black/30 focus:ring-white/30',
-                        )}
-                      />
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label className={cn('mb-2 block text-xs font-medium', subtleText)}>Tema</label>
-                  <select
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value as FocusTheme)}
-                    className={cn(
-                      'w-full rounded-xl border p-2.5 text-sm font-medium outline-none focus:ring-2',
-                      isLight
-                        ? 'border-stone-200 bg-white focus:ring-pastel-blue/40'
-                        : 'border-white/15 bg-black/30 focus:ring-white/30',
-                    )}
-                  >
-                    <option value="midnight">Midnight</option>
-                    <option value="aurora">Aurora</option>
-                    <option value="forest">Forest</option>
-                    <option value="minimal">Minimal (claro)</option>
-                  </select>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* ── MAIN CONTENT ── */}
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col md:flex-row items-center justify-center gap-4 md:gap-8 px-4 sm:px-6 overflow-y-auto custom-scrollbar">
 
-      <div className="relative z-[5] flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        {status === 'finished' ? (
-          <div className="mx-auto min-h-0 w-full max-w-lg flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 py-4 sm:max-w-md sm:px-8">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key="finished"
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                className="flex flex-col items-center px-1 py-4 text-center sm:py-8"
-              >
-                <CheckCircle2 size={72} className={cn('mb-5', isLight ? 'text-emerald-600' : 'text-emerald-400')} />
-                <h2 className="text-2xl font-bold tracking-tight sm:text-4xl">Foco concluído</h2>
-                <p className={cn('mt-2 text-sm', subtleText)}>Respira. O que você quer fazer agora?</p>
-                <div className="mt-8 flex w-full max-w-xs flex-col gap-3 sm:mt-10">
-                  <button
-                    type="button"
-                    onClick={() => startBreak()}
-                    className={cn(
-                      'flex items-center justify-center gap-2 rounded-2xl py-4 text-base font-bold transition-transform hover:scale-[1.02]',
-                      isLight ? 'bg-text-main text-white shadow-md' : 'bg-white text-slate-900 shadow-lg',
-                    )}
-                  >
-                    <Coffee size={18} /> Pausa curta
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => skipBreakNewFocus()}
-                    className={cn(
-                      'rounded-2xl py-3.5 text-base font-semibold transition-colors',
-                      isLight ? 'bg-stone-200/80 text-stone-800 hover:bg-stone-300/80' : 'bg-white/10 text-white hover:bg-white/15',
-                    )}
-                  >
-                    Novo foco (pular pausa)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCloseClick}
-                    className={cn('py-3 text-sm font-medium opacity-70 hover:opacity-100', subtleText)}
-                  >
-                    Sair
-                  </button>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        ) : (
-          <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col overflow-hidden px-5 pb-2 sm:max-w-3xl sm:px-8 sm:pb-3">
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden py-2 sm:py-4">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key="timer"
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }}
-                  className="flex w-full flex-col items-center"
-                >
-              {mode === 'pomodoro' && (
-                <div className="relative mx-auto flex w-full max-w-[min(100%,360px)] items-center justify-center">
-                  <svg
-                    viewBox="0 0 360 360"
-                    className={cn(
-                      'aspect-square w-[min(68vw,260px)] max-w-full -rotate-90 sm:w-[min(72vw,320px)] md:h-[360px] md:w-[360px]',
-                      'max-h-[38dvh] sm:max-h-[min(48dvh,360px)] md:max-h-none',
-                      ringColor,
-                    )}
-                    aria-hidden
-                  >
-                    <circle
-                      cx="180"
-                      cy="180"
-                      r="168"
-                      stroke="currentColor"
-                      strokeOpacity={isLight ? 0.14 : 0.22}
-                      strokeWidth="10"
-                      fill="none"
-                    />
-                    <motion.circle
-                      cx="180"
-                      cy="180"
-                      r="168"
-                      stroke="currentColor"
-                      strokeWidth="10"
-                      fill="none"
-                      strokeLinecap="round"
-                      strokeDasharray={circumference}
-                      initial={false}
-                      animate={{ strokeDashoffset }}
-                      transition={{ duration: 0.95, ease: 'linear' }}
-                    />
-                  </svg>
-                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <motion.span
-                      className={cn(
-                        'font-light tabular-nums tracking-tighter',
-                        'text-[clamp(2.25rem,11vw,3.25rem)] sm:text-6xl md:text-7xl',
-                      )}
-                      animate={status === 'running' ? { scale: [1, 1.008, 1] } : {}}
-                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                    >
-                      {formatTime(mode === 'pomodoro' ? timeLeft : timeElapsed)}
-                    </motion.span>
-                  </div>
-                </div>
-              )}
-
-              {mode === 'stopwatch' && (
-                <motion.span
-                  className={cn(
-                    'font-light tabular-nums tracking-tighter',
-                    'text-[clamp(2.25rem,11vw,3.25rem)] sm:text-6xl md:text-7xl',
-                  )}
-                  animate={status === 'running' ? { scale: [1, 1.008, 1] } : {}}
-                  transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  {formatTime(timeElapsed)}
-                </motion.span>
-              )}
-
-              <p className={cn('mt-3 text-center text-[10px] font-bold uppercase tracking-[0.22em] sm:mt-5 sm:text-xs sm:tracking-[0.28em]', subtleText)}>
-                {status === 'idle'
-                  ? 'Pronto para focar'
-                  : status === 'running'
-                    ? mode === 'pomodoro'
-                      ? 'Foco profundo'
-                      : 'Cronômetro'
-                    : status === 'paused'
-                      ? 'Pausado'
-                      : status === 'break'
-                        ? 'Pausa'
-                        : ''}
-              </p>
-
-              <div className="mt-6 flex items-center gap-3 sm:mt-10 sm:gap-8 md:mt-12 md:gap-10">
-                <button
-                  type="button"
-                  onClick={resetTimer}
-                  className={cn('rounded-full p-3.5 transition-colors sm:p-4', secondaryControl)}
-                  aria-label="Zerar timer"
-                >
-                  <Square size={22} strokeWidth={2.25} />
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleTimer}
-                  className={cn(
-                    'flex h-16 w-16 shrink-0 items-center justify-center rounded-full shadow-xl transition-transform hover:scale-105 sm:h-[4.5rem] sm:w-[4.5rem] md:h-[5.5rem] md:w-[5.5rem]',
-                    isLight ? 'bg-text-main text-white' : 'bg-white text-slate-900',
-                  )}
-                  aria-label={status === 'running' || status === 'break' ? 'Pausar' : 'Iniciar'}
-                >
-                  {status === 'running' || status === 'break' ? (
-                    <Pause size={28} fill="currentColor" className="size-7 sm:size-8 md:size-9" />
-                  ) : (
-                    <Play size={28} fill="currentColor" className="ml-0.5 size-7 sm:ml-1 sm:size-8 md:ml-1.5 md:size-9" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={skipToComplete}
-                  disabled={mode !== 'pomodoro' || status !== 'running'}
-                  className={cn(
-                    'rounded-full p-3.5 transition-colors disabled:pointer-events-none disabled:opacity-30 sm:p-4',
-                    secondaryControl,
-                  )}
-                  aria-label="Concluir pomodoro agora"
-                >
-                  <CheckCircle2 size={22} strokeWidth={2.25} />
-                </button>
-              </div>
-                </motion.div>
-              </AnimatePresence>
+        {/* Timer Panel */}
+        <div className="w-full max-w-[22rem] md:max-w-md flex flex-col items-center rounded-3xl p-5 sm:p-8 shadow-2xl" style={glass}>
+          {/* SVG Ring */}
+          <div className="relative w-48 h-48 sm:w-56 sm:h-56 md:w-72 md:h-72">
+            <svg viewBox="0 0 200 200" className="w-full h-full -rotate-90">
+              <defs>
+                <linearGradient id="ring-grad" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stopColor={accent.hex} />
+                  <stop offset="100%" stopColor={accent.hex} stopOpacity="0.4" />
+                </linearGradient>
+                <filter id="ring-glow">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                </filter>
+              </defs>
+              <circle cx="100" cy="100" r={radius} stroke="rgba(255,255,255,0.08)" strokeWidth="5" fill="none" />
+              <motion.circle cx="100" cy="100" r={radius} stroke="url(#ring-grad)" strokeWidth="5" fill="none"
+                strokeLinecap="round" strokeDasharray={circumference} initial={false}
+                animate={{ strokeDashoffset }} transition={{ duration: 0.95, ease: 'linear' }}
+                filter="url(#ring-glow)" />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <motion.span
+                className="font-black tabular-nums tracking-tighter text-[clamp(2.8rem,12vw,4.5rem)] md:text-7xl leading-none drop-shadow-lg"
+                style={{ color: accent.hex === '#ffffff' ? '#fff' : accent.hex }}
+                animate={status === 'running' ? { scale: [1, 1.015, 1] } : {}}
+                transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
+                {timerDisplay}
+              </motion.span>
             </div>
+          </div>
 
-            {hasSubtasks && (
-          <div
-            className={cn(
-              'mx-auto mt-2 w-full max-w-md shrink-0 rounded-2xl border px-3 py-2.5 sm:mt-3 sm:px-4 sm:py-3',
-              glassPanel,
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => setChecklistOpen((o) => !o)}
-              className="flex w-full items-center justify-between gap-2 text-left"
-            >
-              <span className={cn('text-xs font-bold uppercase tracking-wider opacity-80', isLight ? 'text-stone-800' : 'text-white')}>
-                Checklist do módulo
-              </span>
-              {checklistOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          {/* Status */}
+          <p className="mt-3 text-[10px] sm:text-xs font-bold uppercase tracking-[0.25em] text-white/40">{statusLabel}</p>
+
+          {/* Controls */}
+          <div className="mt-5 sm:mt-8 flex items-center gap-4 sm:gap-6">
+            <button onClick={resetTimer} className="rounded-full p-3 border border-white/20 bg-white/5 text-white/70 hover:bg-white/15 transition-colors shadow-lg" aria-label="Resetar">
+              <RotateCcw size={20} />
             </button>
+            <button onClick={toggleTimer}
+              className="flex h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem] items-center justify-center rounded-full shadow-2xl transition-transform hover:scale-105"
+              style={{ background: accent.hex, color: accent.hex === '#ffffff' ? '#1e293b' : '#fff' }}
+              aria-label={status === 'running' || status === 'break' ? 'Pausar' : 'Iniciar'}>
+              {status === 'running' || status === 'break' ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" className="ml-0.5" />}
+            </button>
+            <button onClick={skipToComplete} disabled={mode !== 'pomodoro' || status !== 'running'}
+              className="rounded-full p-3 border border-white/20 bg-white/5 text-white/70 hover:bg-white/15 transition-colors shadow-lg disabled:opacity-25 disabled:pointer-events-none" aria-label="Pular">
+              <SkipForward size={20} />
+            </button>
+          </div>
+
+          {/* Stats */}
+          <div className="mt-5 grid grid-cols-2 gap-2.5 w-full">
+            <div className="flex flex-col items-center rounded-xl py-2 px-1" style={{ ...glass, background: `rgba(0,0,0,${panelOpacity * 0.4})` }}>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-white/35">Pomodoros</span>
+              <span className="mt-0.5 text-lg font-black tabular-nums">{task.pomodoros ?? 0}<span className="text-xs font-medium text-white/40">{(task.estimatedPomodoros ?? 0) > 0 ? ` / ${task.estimatedPomodoros}` : ''}</span></span>
+            </div>
+            <div className="flex flex-col items-center rounded-xl py-2 px-1" style={{ ...glass, background: `rgba(0,0,0,${panelOpacity * 0.4})` }}>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-white/35">Tempo focado</span>
+              <span className="mt-0.5 text-lg font-black tabular-nums">{Math.floor(((task.liquidTime ?? 0) + sessionLiquidTime) / 60)}m</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Checklist Panel (desktop) */}
+        {hasSubtasks && (
+          <div className="hidden md:flex w-full max-w-sm flex-col rounded-3xl p-6 shadow-2xl max-h-[65vh]" style={glass}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/50 flex items-center gap-2">
+                <CheckSquare size={14} /> Checklist
+              </h3>
+              {totalItems > 0 && <span className="text-[10px] font-bold text-white/30">{doneItems}/{totalItems}</span>}
+            </div>
+            {totalItems > 0 && (
+              <div className="h-1 rounded-full bg-white/10 mb-4 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${totalItems > 0 ? (doneItems / totalItems) * 100 : 0}%`, background: accent.hex }} />
+              </div>
+            )}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+              {(task.subtasks ?? []).map(g => (
+                <div key={g.id} className="space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">{g.title}</p>
+                  {(g.items ?? []).map(item => (
+                    <button key={item.id} onClick={() => toggleSubtaskItem(g.id, item.id)}
+                      className="flex w-full items-start gap-2 rounded-lg py-1.5 px-2 text-left text-sm hover:bg-white/5 transition-colors">
+                      {item.completed ? <CheckSquare size={16} className="mt-0.5 shrink-0" style={{ color: accent.hex }} /> : <SquareIcon size={16} className="mt-0.5 shrink-0 text-white/25" />}
+                      <span className={cn('leading-snug', item.completed ? 'line-through text-white/35' : 'text-white/80')}>{item.title}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Mobile Checklist */}
+      {hasSubtasks && (
+        <div className="md:hidden relative z-20 px-4 mb-1">
+          <button onClick={() => setChecklistOpen(o => !o)} className="flex w-full items-center justify-between rounded-2xl px-4 py-3 shadow-lg" style={glass}>
+            <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/70"><CheckSquare size={14} /> Checklist {totalItems > 0 && `${doneItems}/${totalItems}`}</span>
+            {checklistOpen ? <ChevronDown size={16} className="text-white/50" /> : <ChevronUp size={16} className="text-white/50" />}
+          </button>
+          <AnimatePresence>
             {checklistOpen && (
-              <div className="mt-2 max-h-[min(24dvh,11rem)] space-y-3 overflow-y-auto pr-1 sm:mt-3 sm:max-h-[min(32dvh,15rem)] custom-scrollbar">
-                {(task.subtasks ?? []).map((group) => (
-                  <div key={group.id} className="space-y-1.5">
-                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-60">{group.title}</p>
-                    <div className="space-y-1">
-                      {(group.items ?? []).map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => toggleSubtaskItem(group.id, item.id)}
-                          className={cn(
-                            'flex w-full items-start gap-2 rounded-lg py-1.5 text-left text-sm transition-colors',
-                            isLight ? 'hover:bg-stone-100' : 'hover:bg-white/10',
-                          )}
-                        >
-                          {item.completed ? (
-                            <CheckSquare size={16} className="mt-0.5 shrink-0 text-pastel-blue" />
-                          ) : (
-                            <SquareIcon size={16} className="mt-0.5 shrink-0 opacity-40" />
-                          )}
-                          <span
-                            className={cn(
-                              'min-w-0 leading-snug',
-                              item.completed
-                                ? cn('line-through opacity-70', isLight ? 'text-stone-500' : 'text-white/50')
-                                : isLight
-                                  ? 'text-stone-800'
-                                  : 'text-white/90',
-                            )}
-                          >
-                            {item.title}
-                          </span>
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden rounded-2xl mt-1 shadow-lg" style={glass}>
+                <div className="p-4 max-h-[30dvh] overflow-y-auto space-y-3 custom-scrollbar">
+                  {(task.subtasks ?? []).map(g => (
+                    <div key={g.id} className="space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">{g.title}</p>
+                      {(g.items ?? []).map(item => (
+                        <button key={item.id} onClick={() => toggleSubtaskItem(g.id, item.id)}
+                          className="flex w-full items-start gap-2 rounded-lg py-1.5 px-2 text-left text-sm hover:bg-white/5 transition-colors">
+                          {item.completed ? <CheckSquare size={16} className="mt-0.5 shrink-0" style={{ color: accent.hex }} /> : <SquareIcon size={16} className="mt-0.5 shrink-0 text-white/25" />}
+                          <span className={cn('leading-snug', item.completed ? 'line-through text-white/35' : 'text-white/80')}>{item.title}</span>
                         </button>
                       ))}
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </motion.div>
             )}
-          </div>
-            )}
-          </div>
-        )}
-      </div>
+          </AnimatePresence>
+        </div>
+      )}
 
-      <footer
-        className={cn(
-          'relative z-20 flex w-full shrink-0 flex-wrap justify-center gap-2 border-t px-4 py-3 sm:gap-3 sm:px-8 sm:py-4',
-          isLight ? 'border-stone-200/80 bg-white/50' : 'border-white/10 bg-black/30',
-        )}
-        style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
-      >
-        <div className="mx-auto flex w-full max-w-4xl flex-wrap justify-center gap-2 sm:flex-nowrap sm:gap-3">
-        <div
-          className={cn(
-            'flex min-h-[5rem] min-w-0 flex-1 basis-[calc(50%-0.25rem)] flex-col justify-center rounded-xl border px-3 py-3 text-center sm:min-h-[5.5rem] sm:min-w-[10rem] sm:flex-none sm:basis-0 sm:grow sm:rounded-2xl sm:px-5 sm:py-4',
-            glassPanel,
-          )}
-        >
-          <p className={cn('text-[9px] font-bold uppercase leading-snug tracking-wide sm:text-[10px] sm:tracking-widest', subtleText)}>
-            Pomodoros (módulo)
-          </p>
-          <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{task.pomodoros ?? 0}</p>
-        </div>
-        <div
-          className={cn(
-            'flex min-h-[5rem] min-w-0 flex-1 basis-[calc(50%-0.25rem)] flex-col justify-center rounded-xl border px-3 py-3 text-center sm:min-h-[5.5rem] sm:min-w-[10rem] sm:flex-none sm:basis-0 sm:grow sm:rounded-2xl sm:px-5 sm:py-4',
-            glassPanel,
-          )}
-        >
-          <p className={cn('text-[9px] font-bold uppercase leading-snug tracking-wide sm:text-[10px] sm:tracking-widest', subtleText)}>
-            Tempo focado (módulo)
-          </p>
-          <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">
-            {Math.floor(((task.liquidTime ?? 0) + sessionLiquidTime) / 60)}m
-          </p>
-        </div>
-        {(task.estimatedPomodoros ?? 0) > 0 && (
-          <div
-            className={cn(
-              'flex min-h-[5rem] min-w-0 flex-1 basis-full flex-col justify-center rounded-xl border px-3 py-3 text-center sm:min-h-[5.5rem] sm:min-w-[10rem] sm:flex-none sm:basis-0 sm:grow sm:rounded-2xl sm:px-5 sm:py-4',
-              glassPanel,
+      {/* ── BOTTOM BAR ── */}
+      <footer className="relative z-20 shrink-0 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6" style={{ paddingTop: '0.5rem' }}>
+        <div className="flex items-center gap-3 rounded-2xl px-4 py-2.5 shadow-xl" style={glass}>
+          {/* Sound controls */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <button onClick={() => setSoundType('none')} className="shrink-0 text-white/40 hover:text-white/80 transition-colors">
+              {soundType === 'none' ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+            <div className="flex gap-0.5 overflow-x-auto hide-scrollbar">
+              {AMBIENT_SOUNDS.filter(s => s.id !== 'none').map(s => (
+                <button key={s.id} onClick={() => setSoundType(s.id)}
+                  className={cn('shrink-0 px-2 py-1 rounded-lg text-xs font-medium transition-all',
+                    soundType === s.id ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/60')}>
+                  {s.emoji}
+                </button>
+              ))}
+            </div>
+            {soundType !== 'none' && (
+              <input type="range" min="0" max="1" step="0.05" value={volume}
+                onChange={e => setVolume(parseFloat(e.target.value))}
+                className="w-16 sm:w-20 focus-range shrink-0" />
             )}
-          >
-            <p className={cn('text-[9px] font-bold uppercase leading-snug tracking-wide sm:text-[10px] sm:tracking-widest', subtleText)}>
-              Meta pomodoros
-            </p>
-            <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">
-              {(task.pomodoros ?? 0)}/{task.estimatedPomodoros}
-            </p>
           </div>
-        )}
+
+          <div className="w-px h-5 bg-white/10 shrink-0" />
+
+          {/* Scene selector */}
+          <div className="flex gap-0.5 overflow-x-auto hide-scrollbar">
+            {SCENES.map(s => (
+              <button key={s.id} onClick={() => setScene(s.id)}
+                className={cn('shrink-0 px-2 py-1 rounded-lg text-xs font-medium transition-all',
+                  sceneId === s.id ? 'bg-white/15 text-white' : 'text-white/40 hover:text-white/60')}>
+                {s.emoji}
+              </button>
+            ))}
+          </div>
         </div>
       </footer>
+
+      {/* ── SETTINGS DRAWER ── */}
+      <AnimatePresence>
+        {showSettings && (
+          <SettingsDrawer
+            mode={mode} setMode={setMode}
+            focusDuration={focusDuration} setFocusDuration={setFocusDuration}
+            breakDuration={breakDuration} setBreakDuration={setBreakDuration}
+            accentHex={accent.hex} setAccentId={setAccent}
+            panelOpacity={panelOpacity} setPanelOpacity={setOpacity}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
+
+// ─── SESSION ROOT ───────────────────────────────────────────────────
 
 export type FocusView = 'full' | 'minimized';
 
@@ -660,32 +542,17 @@ interface FocusSessionRootProps {
 
 export function FocusSessionRoot({ task, view, onViewChange, onClose, playSuccessSound }: FocusSessionRootProps) {
   const session = useFocusSession(task.id);
-
-  const handleClose = async () => {
-    await session.closeAfterPersist();
-    onClose();
-  };
+  const handleClose = async () => { await session.closeAfterPersist(); onClose(); };
 
   return (
     <AnimatePresence mode="sync">
       {view === 'full' && (
-        <FocusModeFull
-          key="focus-full"
-          task={task}
-          session={session}
-          onMinimize={() => onViewChange('minimized')}
-          onClose={onClose}
-          playSuccessSound={playSuccessSound}
-        />
+        <FocusModeFull key="focus-full" task={task} session={session}
+          onMinimize={() => onViewChange('minimized')} onClose={onClose} playSuccessSound={playSuccessSound} />
       )}
       {view === 'minimized' && (
-        <FocusMiniPlayer
-          key="focus-mini"
-          task={task}
-          session={session}
-          onExpand={() => onViewChange('full')}
-          onClose={handleClose}
-        />
+        <FocusMiniPlayer key="focus-mini" task={task} session={session}
+          onExpand={() => onViewChange('full')} onClose={handleClose} />
       )}
     </AnimatePresence>
   );

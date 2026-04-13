@@ -45,6 +45,7 @@ export default function App() {
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
   const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
   const [focusView, setFocusView] = useState<FocusView>('full');
+  const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
 
   const focusTask = useMemo(() => tasks.find((t) => t.id === focusTaskId) ?? null, [tasks, focusTaskId]);
 
@@ -136,19 +137,27 @@ export default function App() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative group">
-            <button className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100">
+          <div className="relative">
+            <button 
+              onClick={() => setIsBgMenuOpen(!isBgMenuOpen)}
+              className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100"
+            >
               {bgEffect === 'none' ? <Droplet size={20} className="opacity-50" /> : 
                bgEffect === 'rain' ? <CloudRain size={20} className="text-blue-400" /> : 
                bgEffect === 'snow' ? <Snowflake size={20} className="text-blue-200" /> : 
                <Droplets size={20} className="text-blue-300" />}
             </button>
-            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 shadow-lg rounded-xl p-1 hidden group-hover:flex flex-col gap-1 z-50">
-              <button onClick={() => setBgEffect('none')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'none' && "bg-gray-50 font-bold")}>Nenhum</button>
-              <button onClick={() => setBgEffect('rain')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'rain' && "bg-gray-50 font-bold")}>Chuva</button>
-              <button onClick={() => setBgEffect('snow')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'snow' && "bg-gray-50 font-bold")}>Neve</button>
-              <button onClick={() => setBgEffect('bubbles')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'bubbles' && "bg-gray-50 font-bold")}>Bolhas</button>
-            </div>
+            {isBgMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsBgMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl p-1 flex flex-col gap-1 z-50 min-w-[120px] animate-in fade-in slide-in-from-top-2">
+                  <button onClick={() => { setBgEffect('none'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'none' && "bg-gray-50 font-bold")}>Nenhum</button>
+                  <button onClick={() => { setBgEffect('rain'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'rain' && "bg-gray-50 font-bold")}>Chuva</button>
+                  <button onClick={() => { setBgEffect('snow'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'snow' && "bg-gray-50 font-bold")}>Neve</button>
+                  <button onClick={() => { setBgEffect('bubbles'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'bubbles' && "bg-gray-50 font-bold")}>Bolhas</button>
+                </div>
+              </>
+            )}
           </div>
           <button onClick={logout} className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100">
             <LogOut size={20} />
@@ -199,12 +208,12 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex flex-col items-center justify-center gap-1 w-14 transition-transform active:scale-95"
+              className="flex flex-col items-center justify-center gap-1 w-16 h-16 transition-transform active:scale-95"
             >
               <div
                 className={cn(
-                  "p-2 rounded-2xl transition-all duration-300",
-                  isActive ? "bg-gray-100 shadow-sm scale-110" : "bg-transparent"
+                  "p-2.5 rounded-2xl transition-all duration-300",
+                  isActive ? "bg-gray-100 shadow-sm scale-110" : "bg-transparent hover:bg-gray-50"
                 )}
               >
                 <Icon
@@ -1216,9 +1225,9 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
         </div>
         <button 
           onClick={() => setIsExpanded(!isExpanded)} 
-          className="p-1.5 rounded-full bg-white/50 hover:bg-white text-gray-400 hover:text-gray-600 transition-colors shadow-sm border border-gray-100 shrink-0 mt-1"
+          className="p-2 rounded-full bg-white text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shadow-md border border-gray-200 shrink-0 mt-1 flex items-center justify-center h-8 w-8"
         >
-          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          {isExpanded ? <ChevronUp size={20} strokeWidth={2.5} /> : <ChevronDown size={20} strokeWidth={2.5} />}
         </button>
       </div>
 

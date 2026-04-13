@@ -3,7 +3,7 @@ import { doc, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export type FocusTimerMode = 'pomodoro' | 'stopwatch';
-export type FocusTimerStatus = 'idle' | 'running' | 'paused' | 'break' | 'finished';
+export type FocusTimerStatus = 'idle' | 'running' | 'paused' | 'break' | 'break-paused' | 'finished';
 export type FocusTheme = 'midnight' | 'aurora' | 'minimal' | 'forest';
 
 const FOCUS_THEME_STORAGE_KEY = 'eduflow_focus_theme';
@@ -59,6 +59,7 @@ export function useFocusSession(taskId: string) {
   const focusDurationRef = useRef(focusDuration);
   const breakDurationRef = useRef(breakDuration);
   const sessionLiquidSecondsRef = useRef(0);
+  const sessionTotalSecondsRef = useRef(0);
 
   useEffect(() => {
     setMode('pomodoro');
@@ -68,17 +69,19 @@ export function useFocusSession(taskId: string) {
     setTimeLeft(25 * 60);
     setTimeElapsed(0);
     sessionLiquidSecondsRef.current = 0;
+    sessionTotalSecondsRef.current = 0;
     setSessionLiquidTime(0);
 
     return () => {
       const id = taskId;
-      const delta = sessionLiquidSecondsRef.current;
-      if (delta <= 0) return;
+      const deltaLiquid = sessionLiquidSecondsRef.current;
+      const deltaTotal = sessionTotalSecondsRef.current;
+      if (deltaLiquid <= 0 && deltaTotal <= 0) return;
       sessionLiquidSecondsRef.current = 0;
+      sessionTotalSecondsRef.current = 0;
       void updateDoc(doc(db, 'tasks', id), {
-        liquidTime: increment(delta),
-        totalTime: increment(delta),
-        pomodoros: increment(0),
+        liquidTime: increment(deltaLiquid),
+        totalTime: increment(deltaTotal),
         updatedAt: serverTimestamp(),
       }).catch((err) => console.error('Error saving time on session end:', err));
     };
@@ -106,16 +109,21 @@ export function useFocusSession(taskId: string) {
   }, [breakDuration]);
 
   const persistToFirestore = useCallback(async (isPomodoroComplete: boolean) => {
-    const delta = sessionLiquidSecondsRef.current;
-    if (delta === 0) return;
+    const deltaLiquid = sessionLiquidSecondsRef.current;
+    const deltaTotal = sessionTotalSecondsRef.current;
+    if (deltaLiquid === 0 && deltaTotal === 0 && !isPomodoroComplete) return;
     try {
-      await updateDoc(doc(db, 'tasks', taskId), {
-        liquidTime: increment(delta),
-        totalTime: increment(delta),
-        pomodoros: isPomodoroComplete ? increment(1) : increment(0),
+      const updateData: any = {
+        liquidTime: increment(deltaLiquid),
+        totalTime: increment(deltaTotal),
         updatedAt: serverTimestamp(),
-      });
+      };
+      if (isPomodoroComplete) {
+        updateData.pomodoros = increment(1);
+      }
+      await updateDoc(doc(db, 'tasks', taskId), updateData);
       sessionLiquidSecondsRef.current = 0;
+      sessionTotalSecondsRef.current = 0;
       setSessionLiquidTime(0);
     } catch (error) {
       console.error('Error saving time:', error);
@@ -143,11 +151,13 @@ export function useFocusSession(taskId: string) {
   }, [focusDuration, status, mode]);
 
   useEffect(() => {
-    if (status !== 'running' && status !== 'break') return;
+    if (status === 'idle' || status === 'finished') return;
 
     const id = window.setInterval(() => {
       const s = statusRef.current;
       const m = modeRef.current;
+
+      sessionTotalSecondsRef.current += 1;
 
       if (m === 'pomodoro') {
         if (s === 'running') {
@@ -184,9 +194,13 @@ export function useFocusSession(taskId: string) {
   const toggleTimer = useCallback(() => {
     if (status === 'idle' || status === 'paused') {
       setStatus('running');
+    } else if (status === 'break-paused') {
+      setStatus('break');
     } else if (status === 'running') {
       setStatus('paused');
       void persistToFirestore(false);
+    } else if (status === 'break') {
+      setStatus('break-paused');
     }
   }, [status, persistToFirestore]);
 
