@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, Upload, Image as ImageIcon, Loader2, LayoutList, BarChart2, Sparkles, Tag, Clock, ChevronDown, ChevronUp, Search, CloudRain, Snowflake, Droplets, Droplet, Play } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -12,38 +12,14 @@ import { auth, db, loginWithGoogle, logout } from './firebase';
 import { User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Task, Priority, Status, SubTask } from './types';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { PomodoroWidget } from './components/PomodoroWidget';
-import { FocusMode } from './components/FocusMode';
+import { FocusSessionRoot, type FocusView } from './components/FocusMode';
 import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
+import { SemanaKanban } from './components/SemanaKanban';
 import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
-
-const playSuccessSound = () => {
-  try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-    osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); // C6
-    
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
-  } catch (e) {
-    console.error("Audio play failed", e);
-  }
-};
+import { SUBJECT_INFO } from './constants/subjects';
+import { playSuccessSound } from './utils/sounds';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -51,18 +27,14 @@ function cn(...inputs: ClassValue[]) {
 
 type Tab = 'hoje' | 'semana' | 'inbox' | 'historico';
 
-const SUBJECT_INFO: Record<string, { emoji: string, tagColor: string, cardBg: string }> = {
-  'Geral': { emoji: '📚', tagColor: 'bg-gray-100 text-gray-700 border-gray-200', cardBg: 'bg-white' },
-  'Biologia': { emoji: '🧬', tagColor: 'bg-green-100 text-green-700 border-green-200', cardBg: 'bg-green-50/50' },
-  'Física': { emoji: '⚛️', tagColor: 'bg-blue-100 text-blue-700 border-blue-200', cardBg: 'bg-blue-50/50' },
-  'Química': { emoji: '🧪', tagColor: 'bg-purple-100 text-purple-700 border-purple-200', cardBg: 'bg-purple-50/50' },
-  'Matemática': { emoji: '📐', tagColor: 'bg-red-100 text-red-700 border-red-200', cardBg: 'bg-red-50/50' },
-  'Linguagens': { emoji: '🗣️', tagColor: 'bg-yellow-100 text-yellow-700 border-yellow-200', cardBg: 'bg-yellow-50/50' },
-  'Humanas': { emoji: '🌍', tagColor: 'bg-orange-100 text-orange-700 border-orange-200', cardBg: 'bg-orange-50/50' },
-  'Redação': { emoji: '✍️', tagColor: 'bg-teal-100 text-teal-700 border-teal-200', cardBg: 'bg-teal-50/50' },
-};
-
 const SUBJECTS = Object.keys(SUBJECT_INFO);
+
+const TAB_TITLE: Record<Tab, string> = {
+  hoje: 'Missões de Hoje',
+  semana: 'Visão da Semana',
+  inbox: 'Inbox',
+  historico: 'Histórico',
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('hoje');
@@ -71,11 +43,39 @@ export default function App() {
   const { tasks } = useTasks(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
-  const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
+  const [focusView, setFocusView] = useState<FocusView>('full');
+
+  const focusTask = useMemo(() => tasks.find((t) => t.id === focusTaskId) ?? null, [tasks, focusTaskId]);
+
+  useEffect(() => {
+    if (focusTaskId && !focusTask) {
+      setFocusTaskId(null);
+    }
+  }, [focusTaskId, focusTask]);
 
   useEffect(() => {
     localStorage.setItem('eduflow_bgeffect', bgEffect);
   }, [bgEffect]);
+
+  const openFocusSession = (task: Task) => {
+    if (focusTaskId && focusTaskId !== task.id) {
+      if (
+        !window.confirm(
+          'Encerrar a sessão atual e trocar de módulo? O tempo focado desta sessão será salvo no módulo anterior.',
+        )
+      ) {
+        return;
+      }
+    }
+    setFocusTaskId(task.id);
+    setFocusView('full');
+  };
+
+  const closeFocusSession = () => {
+    setFocusTaskId(null);
+    setFocusView('full');
+  };
 
   const openCreateModal = () => {
     setTaskToEdit(undefined);
@@ -119,14 +119,14 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-pastel-bg overflow-hidden relative shadow-2xl sm:rounded-3xl sm:h-[90vh] sm:my-[5vh] border border-gray-200">
+    <div className="relative flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden border border-gray-200 bg-pastel-bg shadow-2xl sm:my-[5vh] sm:h-[90vh] sm:rounded-3xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
       <BackgroundEffects effect={bgEffect} />
 
       {/* Header */}
-      <header className="px-6 pt-10 pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 z-10 flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-text-main capitalize">
-            {activeTab === 'hoje' ? 'Missões de Hoje' : activeTab}
+      <header className="z-10 flex shrink-0 items-start justify-between border-b border-gray-100 bg-white/80 px-4 pb-4 pt-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-md sm:px-6 sm:pt-10">
+        <div className="min-w-0 pr-2">
+          <h1 className="text-xl font-bold text-text-main sm:text-2xl">
+            {TAB_TITLE[activeTab]}
           </h1>
           <p className="text-sm text-text-muted mt-1">
             {activeTab === 'hoje' && 'Foco máximo. Um passo de cada vez.'}
@@ -157,7 +157,7 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-6 pb-24 relative">
+      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-4 pb-28 sm:p-6 sm:pb-24">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -165,26 +165,33 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="h-full"
+            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
           >
-            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
-            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
-            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
+            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} onFocus={openFocusSession} />}
+            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} onFocus={openFocusSession} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
+            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={openFocusSession} />}
             {activeTab === 'historico' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
           </motion.div>
         </AnimatePresence>
       </main>
 
+      <PomodoroWidget
+        tasks={tasks}
+        onSelectTask={openFocusSession}
+        hidden={!!focusTask && focusView === 'full'}
+      />
+
       {/* Floating Action Button */}
       <button
         onClick={openCreateModal}
-        className="absolute bottom-24 right-6 w-14 h-14 bg-text-main text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform z-30"
+        className="absolute bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-text-main text-white shadow-lg transition-transform hover:scale-105 sm:right-6"
+        aria-label="Criar novo módulo"
       >
         <Plus size={28} />
       </button>
 
       {/* Bottom Navigation Bar */}
-      <nav className="absolute bottom-0 w-full bg-white border-t border-gray-100 px-6 py-4 pb-8 sm:pb-4 flex justify-between items-center z-20 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      <nav className="absolute bottom-0 z-20 flex w-full items-center justify-between rounded-t-3xl border-t border-gray-100 bg-white px-2 py-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] shadow-[0_-10px_40px_rgba(0,0,0,0.05)] sm:px-6 sm:py-4 sm:pb-4">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -231,10 +238,13 @@ export default function App() {
       />
 
       <AnimatePresence>
-        {activeFocusTask && (
-          <FocusMode 
-            task={activeFocusTask} 
-            onClose={() => setActiveFocusTask(null)} 
+        {focusTask && (
+          <FocusSessionRoot
+            task={focusTask}
+            view={focusView}
+            onViewChange={setFocusView}
+            onClose={closeFocusSession}
+            playSuccessSound={playSuccessSound}
           />
         )}
       </AnimatePresence>
@@ -979,7 +989,7 @@ function HojeTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Tas
 
   if (hojeTasks.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center">
+      <div className="flex h-full min-h-[50dvh] flex-col items-center justify-center text-center px-2">
         <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-orange-100">
           <CalendarDays size={40} className="text-orange-400" />
         </div>
@@ -990,7 +1000,7 @@ function HojeTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Tas
   }
 
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
+    <div className="mx-auto w-full max-w-2xl space-y-4">
       {hojeTasks.map(task => (
         <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
       ))}
@@ -1010,10 +1020,10 @@ function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Ta
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto space-y-4 max-w-2xl mx-auto w-full">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col space-y-4 overflow-y-auto">
         {inboxTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center mt-20">
+          <div className="mt-12 flex min-h-[40dvh] flex-col items-center justify-center px-2 text-center sm:mt-20">
             <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-200">
               <Inbox size={40} className="text-gray-400" />
             </div>
@@ -1022,11 +1032,12 @@ function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Ta
           </div>
         ) : (
           inboxTasks.map(task => (
-            <div key={task.id} className="relative">
+            <div key={task.id} className="flex flex-col gap-2">
               <TaskCard task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
               <button
+                type="button"
                 onClick={() => moveToHoje(task)}
-                className="absolute top-4 right-12 text-xs font-bold bg-pastel-peach/50 text-orange-800 px-3 py-1.5 rounded-lg hover:bg-pastel-peach transition-colors"
+                className="self-end rounded-lg bg-pastel-peach/50 px-3 py-1.5 text-xs font-bold text-orange-800 transition-colors hover:bg-pastel-peach"
               >
                 Mover p/ Hoje
               </button>
@@ -1044,7 +1055,8 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   // Toggle subtask directly from card
   const toggleSubtaskItem = async (groupId: string, itemId: string) => {
     let wasCompleted = false;
-    const updatedSubtasks = task.subtasks.map(st => {
+    const baseSubtasks = task.subtasks ?? [];
+    const updatedSubtasks = baseSubtasks.map(st => {
       if (st.id === groupId) {
         return {
           ...st,
@@ -1174,9 +1186,9 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
                   ))}
                 </div>
               )}
-              {(task.pomodoros > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
+              {((task.pomodoros ?? 0) > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
                 <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  🍅 {task.pomodoros}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
+                  🍅 {task.pomodoros ?? 0}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
                 </span>
               )}
               {task.tags && task.tags.map(tag => (
@@ -1301,8 +1313,6 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
     </div>
   );
 }
-
-import { SemanaKanban } from './components/SemanaKanban';
 
 function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
   const completedTasks = tasks.filter(t => t.status === 'concluida');

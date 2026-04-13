@@ -1,17 +1,22 @@
 import { useState, useEffect } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, awaitRedirectAuthResult } from '../firebase';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAuthReady(true);
+    let unsubscribe: (() => void) | undefined;
+
+    void awaitRedirectAuthResult().finally(() => {
+      unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+        setIsAuthReady(true);
+      });
     });
-    return () => unsubscribe();
+
+    return () => unsubscribe?.();
   }, []);
 
   return { user, isAuthReady };
