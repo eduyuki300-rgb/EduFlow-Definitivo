@@ -21,7 +21,6 @@ const COLUMNS: { id: Status; title: string; color: string }[] = [
 export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subjectInfo }: { tasks: Task[], onEdit: (task: Task) => void, onFocus: (task: Task) => void, playSuccessSound: () => void, subjectInfo: any }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState<string>('all');
-  const [expandedColumn, setExpandedColumn] = useState<Status | null>('semana');
 
   const subjects = Array.from(new Set(tasks.map(t => t.subject)));
 
@@ -53,21 +52,6 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
     }
   };
 
-  const handleMoveTo = async (taskId: string, newStatus: Status, currentStatus: Status) => {
-    if (newStatus === currentStatus) return;
-    try {
-      await updateDoc(doc(db, 'tasks', taskId), { 
-        status: newStatus, 
-        updatedAt: serverTimestamp() 
-      });
-      if (newStatus === 'concluida' && currentStatus !== 'concluida') {
-        playSuccessSound();
-      }
-    } catch (error) {
-      console.error("Error updating task status:", error);
-    }
-  };
-
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
@@ -75,82 +59,59 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
     return `${m}m`;
   };
 
-  const totalSemana = tasks.filter(t => t.status !== 'inbox').length;
-  const concluidaSemana = tasks.filter(t => t.status === 'concluida').length;
-  const progressSemana = totalSemana > 0 ? Math.round((concluidaSemana / totalSemana) * 100) : 0;
-
   return (
     <div className="flex flex-col h-full bg-white/50 rounded-3xl border border-white/60 shadow-sm overflow-hidden">
       {/* Filters Header */}
-      <div className="p-4 border-b border-gray-100 flex flex-col gap-3 bg-white/40">
-        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-          <div className="relative flex-1 w-full sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input 
-              type="text" 
-              placeholder="Buscar tarefas..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-pastel-blue bg-white"
-            />
-          </div>
-          <select 
-            value={filterSubject} 
-            onChange={(e) => setFilterSubject(e.target.value)}
-            className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-gray-600 outline-none focus:border-pastel-blue cursor-pointer w-full sm:w-auto"
-          >
-            <option value="all">Todas as Matérias</option>
-            {subjects.map(sub => (
-              <option key={sub} value={sub}>{sub}</option>
-            ))}
-          </select>
+      <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-center justify-between bg-white/40">
+        <div className="relative flex-1 w-full sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <input 
+            type="text" 
+            placeholder="Buscar tarefas..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:border-pastel-blue bg-white"
+          />
         </div>
-
-        {/* Weekly Progress Bar */}
-        <div className="flex items-center gap-3 bg-white/60 p-2.5 rounded-xl border border-gray-100">
-          <div className="text-xs font-bold text-gray-600 min-w-16">Semana</div>
-          <div className="flex-1 h-3 rounded-full bg-gray-100 overflow-hidden shadow-inner">
-            <div 
-              className="h-full rounded-full bg-pastel-blue transition-all duration-500 ease-out" 
-              style={{ width: `${progressSemana}%` }}
-            />
-          </div>
-          <div className="text-xs font-bold text-gray-500 w-9 text-right">{progressSemana}%</div>
-        </div>
+        <select 
+          value={filterSubject} 
+          onChange={(e) => setFilterSubject(e.target.value)}
+          className="px-3 py-2 rounded-xl border border-gray-200 text-sm bg-white text-gray-600 outline-none focus:border-pastel-blue cursor-pointer w-full sm:w-auto"
+        >
+          <option value="all">Todas as Matérias</option>
+          {subjects.map(sub => (
+            <option key={sub} value={sub}>{sub}</option>
+          ))}
+        </select>
       </div>
 
       {/* Kanban Board */}
-      <div className="flex-1 overflow-x-hidden sm:overflow-x-auto p-3 sm:p-4 custom-scrollbar">
+      <div className="flex-1 overflow-x-auto p-4 custom-scrollbar">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 h-full sm:min-w-max pb-20 sm:pb-0">
+          <div className="flex gap-4 h-full min-w-max">
             {COLUMNS.map(column => {
               const columnTasks = filteredTasks.filter(t => t.status === column.id);
-              const isExpanded = expandedColumn === column.id;
               
               return (
-                <div key={column.id} className="flex flex-col w-full sm:w-80 sm:h-full shrink-0 bg-white/40 sm:bg-transparent rounded-2xl p-2 sm:p-0">
-                  <div 
-                    className="flex items-center justify-between mb-2 sm:mb-3 px-2 py-1.5 sm:p-0 cursor-pointer sm:cursor-default rounded-xl sm:rounded-none hover:bg-white/50 sm:hover:bg-transparent transition-colors"
-                    onClick={() => setExpandedColumn(isExpanded ? null : column.id)}
-                  >
+                <div key={column.id} className="flex flex-col w-80 h-full">
+                  <div className="flex items-center justify-between mb-3 px-1">
                     <h3 className="font-bold text-gray-700 text-sm">{column.title}</h3>
                     <span className="bg-white text-gray-500 text-xs font-bold px-2 py-1 rounded-full shadow-sm">
                       {columnTasks.length}
                     </span>
                   </div>
                   
-                  <div className={cn("flex-1 overflow-hidden sm:min-h-0", isExpanded ? "block" : "hidden sm:block")}>
-                    <Droppable droppableId={column.id}>
-                      {(provided, snapshot) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.droppableProps}
-                          className={cn(
-                            "h-full rounded-2xl p-2 transition-colors sm:overflow-y-auto custom-scrollbar",
-                            column.color,
-                            snapshot.isDraggingOver ? "ring-2 ring-pastel-blue/50 bg-opacity-80" : ""
-                          )}
-                        >
+                  <Droppable droppableId={column.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={cn(
+                          "flex-1 rounded-2xl p-2 transition-colors overflow-y-auto custom-scrollbar",
+                          column.color,
+                          snapshot.isDraggingOver ? "ring-2 ring-pastel-blue/50 bg-opacity-80" : ""
+                        )}
+                      >
                         {columnTasks.map((task, index) => {
                           const info = subjectInfo[task.subject] || subjectInfo['Geral'];
                           
@@ -181,21 +142,11 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
                                     <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border inline-flex items-center gap-1", info.tagColor)}>
                                       <span>{info.emoji}</span> {task.subject}
                                     </span>
-                                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                      <select 
-                                         value={task.status}
-                                         onChange={(e) => handleMoveTo(task.id, e.target.value as Status, task.status)}
-                                         className="sm:hidden text-[10px] font-semibold bg-gray-50 text-gray-600 border rounded px-1.5 py-1"
-                                      >
-                                        <option value="inbox">📥 Inbox</option>
-                                        <option value="semana">🗓 A Fazer</option>
-                                        <option value="hoje">🎯 Hoje</option>
-                                        <option value="concluida">✅ Concluído</option>
-                                      </select>
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                       {task.status !== 'concluida' && (
                                         <button 
                                           onClick={() => onFocus(task)}
-                                          className="text-orange-400 hover:text-orange-600 transition-colors p-1.5 bg-orange-50 hover:bg-orange-100 rounded-md"
+                                          className="text-orange-400 hover:text-orange-600 transition-colors p-1 bg-orange-50 hover:bg-orange-100 rounded-md"
                                           title="Focar nesta tarefa"
                                         >
                                           <Play size={14} fill="currentColor" />
@@ -203,7 +154,7 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
                                       )}
                                       <button 
                                         onClick={() => onEdit(task)}
-                                        className="text-gray-400 hover:text-pastel-blue transition-colors p-1.5 hover:bg-gray-50 rounded-md"
+                                        className="text-gray-300 hover:text-pastel-blue transition-colors p-1"
                                       >
                                         <Pencil size={14} />
                                       </button>
@@ -227,14 +178,9 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
                                   <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-50">
                                     <div className="flex items-center gap-2">
                                       {totalItems > 0 && (
-                                        <div className="flex items-center gap-1.5" title={`${progressPct}% concluído`}>
-                                          <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                            {completedItems}/{totalItems}
-                                          </span>
-                                          <div className="w-10 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
-                                            <div className="h-full bg-pastel-blue rounded-full" style={{ width: `${progressPct}%` }} />
-                                          </div>
-                                        </div>
+                                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                          {completedItems}/{totalItems}
+                                        </span>
                                       )}
                                       {task.difficulty > 0 && (
                                         <div className="flex gap-0.5">
@@ -260,7 +206,6 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
                       </div>
                     )}
                   </Droppable>
-                  </div>
                 </div>
               );
             })}

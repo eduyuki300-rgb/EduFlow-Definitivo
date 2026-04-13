@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, Upload, Image as ImageIcon, Loader2, LayoutList, BarChart2, Sparkles, Tag, Clock, ChevronDown, ChevronUp, Search, CloudRain, Snowflake, Droplets, Droplet, Play } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -12,14 +12,38 @@ import { auth, db, loginWithGoogle, logout } from './firebase';
 import { User } from 'firebase/auth';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Task, Priority, Status, SubTask } from './types';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { PomodoroWidget } from './components/PomodoroWidget';
-import { FocusSessionRoot, type FocusView } from './components/FocusMode';
+import { FocusMode } from './components/FocusMode';
 import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
-import { SemanaKanban } from './components/SemanaKanban';
 import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
-import { SUBJECT_INFO } from './constants/subjects';
-import { playSuccessSound } from './utils/sounds';
+
+const playSuccessSound = () => {
+  try {
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); // C6
+    
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    console.error("Audio play failed", e);
+  }
+};
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -27,14 +51,18 @@ function cn(...inputs: ClassValue[]) {
 
 type Tab = 'hoje' | 'semana' | 'inbox' | 'historico';
 
-const SUBJECTS = Object.keys(SUBJECT_INFO);
-
-const TAB_TITLE: Record<Tab, string> = {
-  hoje: 'Missões de Hoje',
-  semana: 'Visão da Semana',
-  inbox: 'Inbox',
-  historico: 'Histórico',
+const SUBJECT_INFO: Record<string, { emoji: string, tagColor: string, cardBg: string }> = {
+  'Geral': { emoji: '📚', tagColor: 'bg-gray-100 text-gray-700 border-gray-200', cardBg: 'bg-white' },
+  'Biologia': { emoji: '🧬', tagColor: 'bg-green-100 text-green-700 border-green-200', cardBg: 'bg-green-50/50' },
+  'Física': { emoji: '⚛️', tagColor: 'bg-blue-100 text-blue-700 border-blue-200', cardBg: 'bg-blue-50/50' },
+  'Química': { emoji: '🧪', tagColor: 'bg-purple-100 text-purple-700 border-purple-200', cardBg: 'bg-purple-50/50' },
+  'Matemática': { emoji: '📐', tagColor: 'bg-red-100 text-red-700 border-red-200', cardBg: 'bg-red-50/50' },
+  'Linguagens': { emoji: '🗣️', tagColor: 'bg-yellow-100 text-yellow-700 border-yellow-200', cardBg: 'bg-yellow-50/50' },
+  'Humanas': { emoji: '🌍', tagColor: 'bg-orange-100 text-orange-700 border-orange-200', cardBg: 'bg-orange-50/50' },
+  'Redação': { emoji: '✍️', tagColor: 'bg-teal-100 text-teal-700 border-teal-200', cardBg: 'bg-teal-50/50' },
 };
+
+const SUBJECTS = Object.keys(SUBJECT_INFO);
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('hoje');
@@ -43,40 +71,11 @@ export default function App() {
   const { tasks } = useTasks(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
-  const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
-  const [focusView, setFocusView] = useState<FocusView>('full');
-  const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
-
-  const focusTask = useMemo(() => tasks.find((t) => t.id === focusTaskId) ?? null, [tasks, focusTaskId]);
-
-  useEffect(() => {
-    if (focusTaskId && !focusTask) {
-      setFocusTaskId(null);
-    }
-  }, [focusTaskId, focusTask]);
+  const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
 
   useEffect(() => {
     localStorage.setItem('eduflow_bgeffect', bgEffect);
   }, [bgEffect]);
-
-  const openFocusSession = (task: Task) => {
-    if (focusTaskId && focusTaskId !== task.id) {
-      if (
-        !window.confirm(
-          'Encerrar a sessão atual e trocar de módulo? O tempo focado desta sessão será salvo no módulo anterior.',
-        )
-      ) {
-        return;
-      }
-    }
-    setFocusTaskId(task.id);
-    setFocusView('full');
-  };
-
-  const closeFocusSession = () => {
-    setFocusTaskId(null);
-    setFocusView('full');
-  };
 
   const openCreateModal = () => {
     setTaskToEdit(undefined);
@@ -120,14 +119,14 @@ export default function App() {
   }
 
   return (
-    <div className="relative flex h-[100dvh] min-h-0 w-full flex-col overflow-hidden border border-gray-200 bg-pastel-bg shadow-2xl sm:my-[5vh] sm:h-[90vh] sm:rounded-3xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+    <div className="flex flex-col h-[100dvh] w-full md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-pastel-bg overflow-hidden relative shadow-2xl sm:rounded-3xl sm:h-[90vh] sm:my-[5vh] border border-gray-200">
       <BackgroundEffects effect={bgEffect} />
 
       {/* Header */}
-      <header className="z-10 flex shrink-0 items-start justify-between border-b border-gray-100 bg-white/80 px-4 pb-4 pt-[max(1.25rem,env(safe-area-inset-top,0px))] backdrop-blur-md sm:px-6 sm:pt-10">
-        <div className="min-w-0 pr-2">
-          <h1 className="text-xl font-bold text-text-main sm:text-2xl">
-            {TAB_TITLE[activeTab]}
+      <header className="px-6 pt-10 pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 z-10 flex justify-between items-start">
+        <div>
+          <h1 className="text-2xl font-bold text-text-main capitalize">
+            {activeTab === 'hoje' ? 'Missões de Hoje' : activeTab}
           </h1>
           <p className="text-sm text-text-muted mt-1">
             {activeTab === 'hoje' && 'Foco máximo. Um passo de cada vez.'}
@@ -137,27 +136,19 @@ export default function App() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <button 
-              onClick={() => setIsBgMenuOpen(!isBgMenuOpen)}
-              className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100"
-            >
+          <div className="relative group">
+            <button className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100">
               {bgEffect === 'none' ? <Droplet size={20} className="opacity-50" /> : 
                bgEffect === 'rain' ? <CloudRain size={20} className="text-blue-400" /> : 
                bgEffect === 'snow' ? <Snowflake size={20} className="text-blue-200" /> : 
                <Droplets size={20} className="text-blue-300" />}
             </button>
-            {isBgMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setIsBgMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 shadow-xl rounded-xl p-1 flex flex-col gap-1 z-50 min-w-[120px] animate-in fade-in slide-in-from-top-2">
-                  <button onClick={() => { setBgEffect('none'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'none' && "bg-gray-50 font-bold")}>Nenhum</button>
-                  <button onClick={() => { setBgEffect('rain'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'rain' && "bg-gray-50 font-bold")}>Chuva</button>
-                  <button onClick={() => { setBgEffect('snow'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'snow' && "bg-gray-50 font-bold")}>Neve</button>
-                  <button onClick={() => { setBgEffect('bubbles'); setIsBgMenuOpen(false); }} className={cn("px-3 py-2 text-sm text-left rounded-lg hover:bg-gray-50 flex items-center gap-2", bgEffect === 'bubbles' && "bg-gray-50 font-bold")}>Bolhas</button>
-                </div>
-              </>
-            )}
+            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 shadow-lg rounded-xl p-1 hidden group-hover:flex flex-col gap-1 z-50">
+              <button onClick={() => setBgEffect('none')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'none' && "bg-gray-50 font-bold")}>Nenhum</button>
+              <button onClick={() => setBgEffect('rain')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'rain' && "bg-gray-50 font-bold")}>Chuva</button>
+              <button onClick={() => setBgEffect('snow')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'snow' && "bg-gray-50 font-bold")}>Neve</button>
+              <button onClick={() => setBgEffect('bubbles')} className={cn("px-3 py-1.5 text-xs text-left rounded-lg hover:bg-gray-50", bgEffect === 'bubbles' && "bg-gray-50 font-bold")}>Bolhas</button>
+            </div>
           </div>
           <button onClick={logout} className="p-2 text-text-muted hover:text-text-main transition-colors rounded-full hover:bg-gray-100">
             <LogOut size={20} />
@@ -166,7 +157,7 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-4 pb-28 sm:p-6 sm:pb-24">
+      <main className="flex-1 overflow-y-auto p-6 pb-24 relative">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -174,33 +165,26 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+            className="h-full"
           >
-            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} onFocus={openFocusSession} />}
-            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} onFocus={openFocusSession} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
-            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={openFocusSession} />}
+            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
+            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
+            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
             {activeTab === 'historico' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      <PomodoroWidget
-        tasks={tasks}
-        onSelectTask={openFocusSession}
-        hidden={!!focusTask && focusView === 'full'}
-      />
-
       {/* Floating Action Button */}
       <button
         onClick={openCreateModal}
-        className="absolute bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-text-main text-white shadow-lg transition-transform hover:scale-105 sm:right-6"
-        aria-label="Criar novo módulo"
+        className="absolute bottom-24 right-6 w-14 h-14 bg-text-main text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform z-30"
       >
         <Plus size={28} />
       </button>
 
       {/* Bottom Navigation Bar */}
-      <nav className="absolute bottom-0 z-20 flex w-full items-center justify-between rounded-t-3xl border-t border-gray-100 bg-white px-2 py-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] shadow-[0_-10px_40px_rgba(0,0,0,0.05)] sm:px-6 sm:py-4 sm:pb-4">
+      <nav className="absolute bottom-0 w-full bg-white border-t border-gray-100 px-6 py-4 pb-8 sm:pb-4 flex justify-between items-center z-20 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -208,12 +192,12 @@ export default function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="flex flex-col items-center justify-center gap-1 w-16 h-16 transition-transform active:scale-95"
+              className="flex flex-col items-center justify-center gap-1 w-14 transition-transform active:scale-95"
             >
               <div
                 className={cn(
-                  "p-2.5 rounded-2xl transition-all duration-300",
-                  isActive ? "bg-gray-100 shadow-sm scale-110" : "bg-transparent hover:bg-gray-50"
+                  "p-2 rounded-2xl transition-all duration-300",
+                  isActive ? "bg-gray-100 shadow-sm scale-110" : "bg-transparent"
                 )}
               >
                 <Icon
@@ -247,13 +231,10 @@ export default function App() {
       />
 
       <AnimatePresence>
-        {focusTask && (
-          <FocusSessionRoot
-            task={focusTask}
-            view={focusView}
-            onViewChange={setFocusView}
-            onClose={closeFocusSession}
-            playSuccessSound={playSuccessSound}
+        {activeFocusTask && (
+          <FocusMode 
+            task={activeFocusTask} 
+            onClose={() => setActiveFocusTask(null)} 
           />
         )}
       </AnimatePresence>
@@ -263,7 +244,7 @@ export default function App() {
 
 // Modal Component
 function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onClose: () => void, user: User, taskToEdit?: Task }) {
-  const [activeTab, setActiveTab] = useState<'geral' | 'metricas' | 'ia'>('geral');
+  const [activeTab, setActiveTab] = useState<'geral' | 'estrutura' | 'metricas' | 'ia'>('geral');
   
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Geral');
@@ -282,12 +263,6 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   const [estimatedPomodoros, setEstimatedPomodoros] = useState<number>(0);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [clientApiKey, setClientApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
-  const [isEditingKey, setIsEditingKey] = useState(!localStorage.getItem('geminiApiKey'));
-
-  useEffect(() => {
-    localStorage.setItem('geminiApiKey', clientApiKey);
-  }, [clientApiKey]);
 
   useEffect(() => {
     if (isOpen) {
@@ -411,7 +386,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents, apiKey: clientApiKey })
+        body: JSON.stringify({ contents })
       });
 
       if (!response.ok) {
@@ -567,9 +542,10 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   };
 
   const tabs = [
-    { id: 'geral', label: 'Módulo', icon: <BookOpen size={16} />, dot: 'bg-emerald-400' },
-    { id: 'metricas', label: 'Métricas', icon: <BarChart2 size={16} />, dot: 'bg-blue-400' },
-    { id: 'ia', label: 'IA Assist', icon: <Sparkles size={16} />, dot: 'bg-purple-400' },
+    { id: 'geral', label: 'Geral', icon: <BookOpen size={16} /> },
+    { id: 'estrutura', label: 'Estrutura', icon: <LayoutList size={16} /> },
+    { id: 'metricas', label: 'Métricas', icon: <BarChart2 size={16} /> },
+    { id: 'ia', label: 'IA Assist', icon: <Sparkles size={16} /> },
   ] as const;
 
   return (
@@ -605,12 +581,11 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                 onClick={() => setActiveTab(tab.id as any)}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
-                  activeTab === tab.id
-                    ? "bg-white text-text-main shadow-sm border border-gray-100"
-                    : "text-gray-400 hover:bg-gray-100/50 hover:text-gray-700"
+                  activeTab === tab.id 
+                    ? "bg-white text-pastel-blue shadow-sm border border-gray-100" 
+                    : "text-gray-500 hover:bg-gray-100/50 hover:text-gray-700"
                 )}
               >
-                <span className={cn('w-2 h-2 rounded-full shrink-0', tab.dot, activeTab === tab.id ? 'opacity-100' : 'opacity-30')} />
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -761,42 +736,65 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     />
                   </div>
                 </div>
+              </div>
+            )}
 
-                {/* ── CHECKLIST DE AULAS ── */}
-                <div className="flex items-center gap-3 pt-2">
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Checklist de Aulas</span>
-                  <div className="flex-1 h-px bg-gray-100" />
-                </div>
-                <div className="flex justify-between items-center bg-pastel-bg/30 p-3 rounded-2xl border border-gray-100">
-                  <p className="text-xs text-text-muted">Divida o módulo em grupos de aulas.</p>
-                  <button type="button" onClick={addSubtaskGroup} className="bg-white px-3 py-2 rounded-xl shadow-sm text-pastel-blue hover:text-blue-600 font-bold text-xs flex items-center gap-1 border border-gray-100 active:scale-95">
+            {/* TAB: ESTRUTURA */}
+            {activeTab === 'estrutura' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="flex justify-between items-center bg-pastel-bg/30 p-4 rounded-2xl border border-gray-100">
+                  <div>
+                    <h3 className="font-bold text-text-main text-sm">Checklist de Aulas</h3>
+                    <p className="text-xs text-text-muted">Divida o módulo em partes menores.</p>
+                  </div>
+                  <button type="button" onClick={addSubtaskGroup} className="bg-white px-3 py-2 rounded-xl shadow-sm text-pastel-blue hover:text-blue-600 font-bold text-xs flex items-center gap-1 border border-gray-100 transition-transform active:scale-95">
                     <Plus size={14} /> Novo Grupo
                   </button>
                 </div>
+                
                 {subtasks.length === 0 && (
-                  <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <LayoutList size={28} className="mx-auto text-gray-300 mb-2" />
-                    <p className="text-sm text-text-muted font-medium">Nenhum grupo ainda.</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Ex: 📺 Vídeo aulas, 📝 Exercícios</p>
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <LayoutList size={32} className="mx-auto text-gray-300 mb-3" />
+                    <p className="text-sm text-text-muted font-medium">Nenhuma sub-tarefa adicionada.</p>
+                    <p className="text-xs text-gray-400 mt-1">Ex: Vídeo aulas, Exercícios de Fixação</p>
                   </div>
                 )}
+                
                 <div className="space-y-4">
                   {subtasks.map((group, gIndex) => (
                     <div key={group.id} className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                      {/* Group Header */}
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-gray-100 text-gray-500 text-xs font-black w-6 h-6 flex items-center justify-center rounded-md shrink-0">{gIndex + 1}</div>
-                        <input type="text" value={group.title} onChange={(e) => updateSubtaskGroupTitle(group.id, e.target.value)}
-                          placeholder="Ex: 📺 Vídeo aulas" className="flex-1 bg-transparent font-black text-text-main text-base focus:outline-none placeholder:font-normal" />
-                        <button type="button" onClick={() => removeSubtaskGroup(group.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={18} /></button>
+                        <div className="bg-gray-100 text-gray-500 text-xs font-black w-6 h-6 flex items-center justify-center rounded-md shrink-0">
+                          {gIndex + 1}
+                        </div>
+                        <input
+                          type="text"
+                          value={group.title}
+                          onChange={(e) => updateSubtaskGroupTitle(group.id, e.target.value)}
+                          placeholder="Ex: Vídeo aulas"
+                          className="flex-1 bg-transparent font-black text-text-main text-base focus:outline-none placeholder:font-normal"
+                        />
+                        <button type="button" onClick={() => removeSubtaskGroup(group.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1">
+                          <Trash2 size={18} />
+                        </button>
                       </div>
+
+                      {/* Group Items */}
                       <div className="pl-9 space-y-2">
                         {(group.items || []).map((item, iIndex) => (
                           <div key={item.id} className="flex items-center gap-2 group/item">
                             <span className="text-xs text-gray-300 font-bold w-4 shrink-0">{iIndex + 1}.</span>
-                            <input type="text" value={item.title} onChange={(e) => updateSubtaskItemTitle(group.id, item.id, e.target.value)}
-                              placeholder="Ex: Introdução (30 min)" className="flex-1 min-w-0 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pastel-blue transition-all" />
-                            <button type="button" onClick={() => removeSubtaskItem(group.id, item.id)} className="text-gray-300 hover:text-red-400 p-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"><X size={16} /></button>
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => updateSubtaskItemTitle(group.id, item.id, e.target.value)}
+                              placeholder="Ex: 📺 1. Introdução (30 min)"
+                              className="flex-1 min-w-0 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pastel-blue transition-all"
+                            />
+                            <button type="button" onClick={() => removeSubtaskItem(group.id, item.id)} className="text-gray-300 hover:text-red-400 p-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              <X size={16} />
+                            </button>
                           </div>
                         ))}
                         <button type="button" onClick={() => addSubtaskItem(group.id)} className="text-xs font-bold text-gray-400 hover:text-pastel-blue flex items-center gap-1 mt-3 py-1 bg-gray-50/50 px-3 rounded-lg border border-dashed border-gray-200 w-full justify-center">
@@ -808,7 +806,6 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                 </div>
               </div>
             )}
-
 
             {/* TAB: MÉTRICAS */}
             {activeTab === 'metricas' && (
@@ -901,55 +898,6 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     Cole (Ctrl+V) ou envie prints do seu cronograma, edital ou plataforma de estudos. A IA vai extrair as aulas e preencher a estrutura automaticamente.
                   </p>
                   
-                  <div className="max-w-sm mx-auto mb-6 text-left">
-                    {!isEditingKey ? (
-                      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-2 text-green-700">
-                          <CheckCircle2 size={16} />
-                          <span className="text-xs font-bold">Chave API Configurada</span>
-                        </div>
-                        <button 
-                          onClick={() => setIsEditingKey(true)}
-                          className="text-[10px] uppercase font-bold text-green-700 hover:text-green-800 bg-green-100/50 hover:bg-green-100 px-2 py-1 rounded-md transition-colors"
-                        >
-                          Editar
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <label className="text-xs font-bold text-purple-900/60 mb-2 uppercase tracking-wider flex justify-between items-center">
-                          Chave da API do Gemini
-                          {clientApiKey && (
-                            <button onClick={() => setIsEditingKey(false)} className="text-purple-500 hover:text-purple-700 text-[10px] bg-purple-100/50 px-2 py-0.5 rounded transition-colors">Cancelar</button>
-                          )}
-                        </label>
-                        <input 
-                          type="password" 
-                          value={clientApiKey}
-                          onChange={(e) => setClientApiKey(e.target.value)}
-                          placeholder="Cole sua Gemini API Key aqui..."
-                          className="w-full bg-white border border-purple-200 rounded-xl px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all font-mono"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.currentTarget.blur();
-                              if (clientApiKey.trim() === '') {
-                                alert('Por favor, informe a chave da API do Gemini.');
-                                return;
-                              }
-                              setIsEditingKey(false);
-                              if (images.length === 0) {
-                                alert('Chave API salva com sucesso no navegador!');
-                              } else {
-                                processImages();
-                              }
-                            }
-                          }}
-                        />
-                        <p className="text-[10px] text-purple-700/60 mt-2 font-medium">Sua chave fica salva apenas no seu navegador.</p>
-                      </>
-                    )}
-                  </div>
-
                   <button 
                     onClick={() => fileInputRef.current?.click()}
                     className="bg-white text-purple-700 px-6 py-3 rounded-xl shadow-sm border border-purple-100 hover:bg-purple-50 transition-colors font-bold flex items-center gap-2 mx-auto"
@@ -1031,7 +979,7 @@ function HojeTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Tas
 
   if (hojeTasks.length === 0) {
     return (
-      <div className="flex h-full min-h-[50dvh] flex-col items-center justify-center text-center px-2">
+      <div className="flex flex-col items-center justify-center h-full text-center">
         <div className="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-orange-100">
           <CalendarDays size={40} className="text-orange-400" />
         </div>
@@ -1042,7 +990,7 @@ function HojeTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Tas
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-4">
+    <div className="space-y-4 max-w-2xl mx-auto">
       {hojeTasks.map(task => (
         <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
       ))}
@@ -1062,10 +1010,10 @@ function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Ta
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col space-y-4 overflow-y-auto">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto space-y-4 max-w-2xl mx-auto w-full">
         {inboxTasks.length === 0 ? (
-          <div className="mt-12 flex min-h-[40dvh] flex-col items-center justify-center px-2 text-center sm:mt-20">
+          <div className="flex flex-col items-center justify-center h-full text-center mt-20">
             <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-200">
               <Inbox size={40} className="text-gray-400" />
             </div>
@@ -1074,12 +1022,11 @@ function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Ta
           </div>
         ) : (
           inboxTasks.map(task => (
-            <div key={task.id} className="flex flex-col gap-2">
+            <div key={task.id} className="relative">
               <TaskCard task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
               <button
-                type="button"
                 onClick={() => moveToHoje(task)}
-                className="self-end rounded-lg bg-pastel-peach/50 px-3 py-1.5 text-xs font-bold text-orange-800 transition-colors hover:bg-pastel-peach"
+                className="absolute top-4 right-12 text-xs font-bold bg-pastel-peach/50 text-orange-800 px-3 py-1.5 rounded-lg hover:bg-pastel-peach transition-colors"
               >
                 Mover p/ Hoje
               </button>
@@ -1097,8 +1044,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   // Toggle subtask directly from card
   const toggleSubtaskItem = async (groupId: string, itemId: string) => {
     let wasCompleted = false;
-    const baseSubtasks = task.subtasks ?? [];
-    const updatedSubtasks = baseSubtasks.map(st => {
+    const updatedSubtasks = task.subtasks.map(st => {
       if (st.id === groupId) {
         return {
           ...st,
@@ -1179,87 +1125,88 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   const totalTime = task.totalTime || 0;
   const efficiency = totalTime > 0 ? Math.round((liquidTime / totalTime) * 100) : 0;
 
-  // Checklist progress
-  const allSubItems = (task.subtasks ?? []).flatMap(g => g.items ?? []);
-  const doneSubItems = allSubItems.filter(i => i.completed).length;
-  const totalSubItems = allSubItems.length;
-  const checklistPct = totalSubItems > 0 ? Math.round((doneSubItems / totalSubItems) * 100) : -1;
-
   return (
-    <div className={cn("p-4 sm:p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-3 transition-all hover:shadow-md", subjectInfo.cardBg)}>
-
-      {/* Row 1: badges + action buttons */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-          <span className={cn("text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border flex items-center gap-1", subjectInfo.tagColor)}>
+    <div className={cn("p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 transition-all hover:shadow-md", subjectInfo.cardBg)}>
+      
+      {/* Header: Subject, Priority, Edit */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border flex items-center gap-1", subjectInfo.tagColor)}>
             <span>{subjectInfo.emoji}</span> {task.subject}
           </span>
           {task.priority === 'alta' && (
-            <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-md">Alta 🔥</span>
-          )}
-          {(task.difficulty ?? 0) > 0 && (
-            <div className="flex gap-0.5">
-              {[...Array(task.difficulty)].map((_, i) => <Star key={i} size={11} className="fill-yellow-400 text-yellow-400" />)}
-            </div>
+            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-600 border border-red-200 px-2.5 py-1 rounded-md">
+              Alta 🔥
+            </span>
           )}
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1">
           {onFocus && task.status !== 'concluida' && (
-            <button onClick={onFocus} title="Focar nesta tarefa"
-              className="rounded-xl p-2 text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors">
-              <Play size={15} fill="currentColor" />
+            <button 
+              onClick={onFocus} 
+              className="text-orange-400 hover:text-orange-600 transition-colors p-1 bg-orange-50 hover:bg-orange-100 rounded-md"
+              title="Focar nesta tarefa"
+            >
+              <Play size={18} fill="currentColor" />
             </button>
           )}
-          <button onClick={onEdit} title="Editar"
-            className="rounded-xl p-2 text-gray-400 hover:text-text-main hover:bg-white/70 transition-colors">
-            <Pencil size={15} />
+          <button onClick={onEdit} className="text-gray-400 hover:text-text-main transition-colors p-1">
+            <Pencil size={18} />
           </button>
         </div>
       </div>
 
-      {/* Row 2: complete toggle + title + expand */}
-      <div className="flex items-start gap-3">
-        <button onClick={toggleTaskStatus}
-          className={cn("mt-0.5 transition-all shrink-0 active:scale-90", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-400")}>
-          {task.status === 'concluida' ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-        </button>
-        <div className="flex-1 min-w-0">
-          <h3 className={cn("font-bold text-base leading-snug", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>
-            {task.title}
-          </h3>
-          {/* Inline badges row */}
-          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-            {(((task.pomodoros ?? 0) > 0) || ((task.estimatedPomodoros ?? 0) > 0)) && (
-              <span className="text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 px-1.5 py-0.5 rounded-md">
-                🍅 {task.pomodoros ?? 0}{(task.estimatedPomodoros ?? 0) > 0 ? `/${task.estimatedPomodoros}` : ''}
-              </span>
-            )}
-            {liquidTime > 0 && (
-              <span className="text-[10px] font-medium text-gray-500 bg-white/80 border border-gray-200 px-1.5 py-0.5 rounded-md">⏱ {formatDuration(liquidTime)}</span>
-            )}
-            {(task.tags ?? []).map(tag => (
-              <span key={tag} className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
-                <Tag size={9} /> {tag}
-              </span>
-            ))}
-          </div>
-          {/* Checklist progress bar */}
-          {checklistPct >= 0 && (
-            <div className="mt-2.5">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Checklist</span>
-                <span className="text-[10px] font-bold text-gray-500">{doneSubItems}/{totalSubItems}</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-black/8 overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${checklistPct}%`, background: checklistPct === 100 ? '#22c55e' : checklistPct >= 50 ? '#60a5fa' : '#fb923c' }} />
-              </div>
+      {/* Title & Complete Button */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3 flex-1">
+          <button onClick={toggleTaskStatus} className={cn("mt-1 transition-colors shrink-0", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-500")}>
+            {task.status === 'concluida' ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+          </button>
+          <div className="flex flex-col gap-1.5">
+            <h3 className={cn("font-bold text-lg leading-tight", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>{task.title}</h3>
+            
+            {/* Always visible metrics & tags */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {task.difficulty > 0 && (
+                <div className="flex gap-0.5">
+                  {[...Array(task.difficulty)].map((_, i) => (
+                    <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+              )}
+              {(task.pomodoros > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  🍅 {task.pomodoros}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
+                </span>
+              )}
+              {task.tags && task.tags.map(tag => (
+                <span key={tag} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  <Tag size={10} /> {tag}
+                </span>
+              ))}
+              {totalTime > 0 && (
+                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-gray-200 px-2 py-0.5 rounded-md text-gray-600">
+                  <span className="text-green-600" title="Tempo Líquido (Foco)">⏱️ {formatDuration(liquidTime)}</span>
+                  <span className="text-gray-300">|</span>
+                  <span className="text-gray-500" title="Tempo Total (Com pausas)">⏳ {formatDuration(totalTime)}</span>
+                  {efficiency > 0 && (
+                    <>
+                      <span className="text-gray-300">|</span>
+                      <span className={cn(efficiency >= 80 ? "text-green-600" : efficiency >= 50 ? "text-yellow-600" : "text-red-600")} title="Eficiência">
+                        ⚡ {efficiency}%
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
-        <button onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1.5 rounded-full bg-white text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors shadow-sm border border-gray-200 shrink-0 mt-0.5">
-          {isExpanded ? <ChevronUp size={17} strokeWidth={2.5} /> : <ChevronDown size={17} strokeWidth={2.5} />}
+        <button 
+          onClick={() => setIsExpanded(!isExpanded)} 
+          className="p-1.5 rounded-full bg-white/50 hover:bg-white text-gray-400 hover:text-gray-600 transition-colors shadow-sm border border-gray-100 shrink-0 mt-1"
+        >
+          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
         </button>
       </div>
 
@@ -1335,8 +1282,8 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
       {/* Notes Snippet */}
       {task.notes && (
         <div className="pl-9 mt-1">
-          <div className="bg-pastel-bg p-3 rounded-xl text-xs text-text-muted italic border border-gray-100 leading-relaxed whitespace-pre-wrap">
-            <span className="not-italic text-text-main">&ldquo;</span>{task.notes}<span className="not-italic text-text-main">&rdquo;</span>
+          <div className="bg-pastel-bg p-3 rounded-xl text-xs text-text-muted italic border border-gray-100">
+            "{task.notes}"
           </div>
         </div>
       )}
@@ -1355,6 +1302,8 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   );
 }
 
+import { SemanaKanban } from './components/SemanaKanban';
+
 function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
   const completedTasks = tasks.filter(t => t.status === 'concluida');
 
@@ -1368,35 +1317,11 @@ function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) =
     );
   }
 
-  const totalPomodoros = completedTasks.reduce((s, t) => s + (t.pomodoros ?? 0), 0);
-  const totalFocusSec = completedTasks.reduce((s, t) => s + (t.liquidTime ?? 0), 0);
-  const fh = Math.floor(totalFocusSec / 3600);
-  const fm = Math.floor((totalFocusSec % 3600) / 60);
-  const focusStr = fh > 0 ? `${fh}h ${fm}m` : `${fm}m`;
-  const allQ = completedTasks.reduce((s, t) => s + (t.questionsTotal ?? 0), 0);
-  const correctQ = completedTasks.reduce((s, t) => s + (t.questionsCorrect ?? 0), 0);
-  const avgPct = allQ > 0 ? Math.round((correctQ / allQ) * 100) : null;
-
   return (
     <div className="space-y-4 pb-20 max-w-2xl mx-auto">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Concluídas', value: completedTasks.length, emoji: '✅' },
-          { label: 'Pomodoros', value: totalPomodoros, emoji: '🍅' },
-          { label: 'Tempo focado', value: focusStr, emoji: '⏱️' },
-          { label: 'Acerto médio', value: avgPct !== null ? `${avgPct}%` : '—', emoji: '🎯' },
-        ].map(stat => (
-          <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm text-center">
-            <p className="text-xl mb-0.5">{stat.emoji}</p>
-            <p className="text-xl font-black text-text-main tabular-nums">{stat.value}</p>
-            <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mt-0.5">{stat.label}</p>
-          </div>
-        ))}
-      </div>
       {completedTasks.map(task => (
         <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
       ))}
     </div>
   );
 }
-
