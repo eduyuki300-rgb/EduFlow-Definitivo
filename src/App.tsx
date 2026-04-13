@@ -121,6 +121,7 @@ export default function App() {
   return (
     <div className="flex flex-col h-[100dvh] w-full md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-pastel-bg overflow-hidden relative shadow-2xl sm:rounded-3xl sm:h-[90vh] sm:my-[5vh] border border-gray-200">
       <BackgroundEffects effect={bgEffect} />
+      <PomodoroWidget tasks={tasks} onEnterImmersive={setActiveFocusTask} />
 
       {/* Header */}
       <header className="px-6 pt-10 pb-4 bg-white/80 backdrop-blur-md border-b border-gray-100 z-10 flex justify-between items-start">
@@ -167,9 +168,9 @@ export default function App() {
             transition={{ duration: 0.2 }}
             className="h-full"
           >
-            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
-            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
-            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
+            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
+            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
+            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
             {activeTab === 'historico' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
           </motion.div>
         </AnimatePresence>
@@ -974,7 +975,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 }
 
 // Tab Components
-function HojeTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Task) => void, onFocus: (task: Task) => void }) {
+function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
   const hojeTasks = tasks.filter(t => t.status === 'hoje');
 
   if (hojeTasks.length === 0) {
@@ -992,13 +993,13 @@ function HojeTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Tas
   return (
     <div className="space-y-4 max-w-2xl mx-auto">
       {hojeTasks.map(task => (
-        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
+        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
       ))}
     </div>
   );
 }
 
-function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Task) => void, onFocus: (task: Task) => void }) {
+function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
   const inboxTasks = tasks.filter(t => t.status === 'inbox');
 
   const moveToHoje = async (task: Task) => {
@@ -1023,7 +1024,7 @@ function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Ta
         ) : (
           inboxTasks.map(task => (
             <div key={task.id} className="relative">
-              <TaskCard task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
+              <TaskCard task={task} onEdit={() => onEdit(task)} />
               <button
                 onClick={() => moveToHoje(task)}
                 className="absolute top-4 right-12 text-xs font-bold bg-pastel-peach/50 text-orange-800 px-3 py-1.5 rounded-lg hover:bg-pastel-peach transition-colors"
@@ -1038,7 +1039,7 @@ function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Ta
   );
 }
 
-function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, onFocus?: () => void, key?: React.Key }) {
+function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: React.Key }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   // Toggle subtask directly from card
@@ -1140,20 +1141,9 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          {onFocus && task.status !== 'concluida' && (
-            <button 
-              onClick={onFocus} 
-              className="text-orange-400 hover:text-orange-600 transition-colors p-1 bg-orange-50 hover:bg-orange-100 rounded-md"
-              title="Focar nesta tarefa"
-            >
-              <Play size={18} fill="currentColor" />
-            </button>
-          )}
-          <button onClick={onEdit} className="text-gray-400 hover:text-text-main transition-colors p-1">
-            <Pencil size={18} />
-          </button>
-        </div>
+        <button onClick={onEdit} className="text-gray-400 hover:text-text-main transition-colors p-1">
+          <Pencil size={18} />
+        </button>
       </div>
 
       {/* Title & Complete Button */}

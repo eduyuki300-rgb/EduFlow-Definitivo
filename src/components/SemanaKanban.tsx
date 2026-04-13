@@ -18,7 +18,7 @@ const COLUMNS: { id: Status; title: string; color: string }[] = [
   { id: 'concluida', title: '✅ Concluído', color: 'bg-green-50' }
 ];
 
-export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subjectInfo }: { tasks: Task[], onEdit: (task: Task) => void, onFocus: (task: Task) => void, playSuccessSound: () => void, subjectInfo: any }) {
+export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void, subjectInfo: any }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState<string>('all');
 
@@ -142,23 +142,12 @@ export function SemanaKanban({ tasks, onEdit, onFocus, playSuccessSound, subject
                                     <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md border inline-flex items-center gap-1", info.tagColor)}>
                                       <span>{info.emoji}</span> {task.subject}
                                     </span>
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      {task.status !== 'concluida' && (
-                                        <button 
-                                          onClick={() => onFocus(task)}
-                                          className="text-orange-400 hover:text-orange-600 transition-colors p-1 bg-orange-50 hover:bg-orange-100 rounded-md"
-                                          title="Focar nesta tarefa"
-                                        >
-                                          <Play size={14} fill="currentColor" />
-                                        </button>
-                                      )}
-                                      <button 
-                                        onClick={() => onEdit(task)}
-                                        className="text-gray-300 hover:text-pastel-blue transition-colors p-1"
-                                      >
-                                        <Pencil size={14} />
-                                      </button>
-                                    </div>
+                                    <button 
+                                      onClick={() => onEdit(task)}
+                                      className="text-gray-300 hover:text-pastel-blue transition-colors p-1 opacity-0 group-hover:opacity-100"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
                                   </div>
                                   
                                   <h4 className={cn("font-bold text-sm mb-2", task.status === 'concluida' ? "line-through text-gray-400" : "text-gray-800")}>
