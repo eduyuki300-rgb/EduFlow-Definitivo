@@ -547,11 +547,11 @@ export function FocusSessionRoot({ task, view, onViewChange, onClose, playSucces
   return (
     <AnimatePresence mode="sync">
       {view === 'full' && (
-        <FocusModeFull key="focus-full" task={task} session={session}
+        <FocusModeFull task={task} session={session}
           onMinimize={() => onViewChange('minimized')} onClose={onClose} playSuccessSound={playSuccessSound} />
       )}
       {view === 'minimized' && (
-        <FocusMiniPlayer key="focus-mini" task={task} session={session}
+        <FocusMiniPlayer task={task} session={session}
           onExpand={() => onViewChange('full')} onClose={handleClose} />
       )}
     </AnimatePresence>

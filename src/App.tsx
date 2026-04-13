@@ -263,7 +263,7 @@ export default function App() {
 
 // Modal Component
 function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onClose: () => void, user: User, taskToEdit?: Task }) {
-  const [activeTab, setActiveTab] = useState<'geral' | 'estrutura' | 'metricas' | 'ia'>('geral');
+  const [activeTab, setActiveTab] = useState<'geral' | 'metricas' | 'ia'>('geral');
   
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Geral');
@@ -282,6 +282,12 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   const [estimatedPomodoros, setEstimatedPomodoros] = useState<number>(0);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [clientApiKey, setClientApiKey] = useState(() => localStorage.getItem('geminiApiKey') || '');
+  const [isEditingKey, setIsEditingKey] = useState(!localStorage.getItem('geminiApiKey'));
+
+  useEffect(() => {
+    localStorage.setItem('geminiApiKey', clientApiKey);
+  }, [clientApiKey]);
 
   useEffect(() => {
     if (isOpen) {
@@ -405,7 +411,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents })
+        body: JSON.stringify({ contents, apiKey: clientApiKey })
       });
 
       if (!response.ok) {
@@ -561,10 +567,9 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   };
 
   const tabs = [
-    { id: 'geral', label: 'Geral', icon: <BookOpen size={16} /> },
-    { id: 'estrutura', label: 'Estrutura', icon: <LayoutList size={16} /> },
-    { id: 'metricas', label: 'Métricas', icon: <BarChart2 size={16} /> },
-    { id: 'ia', label: 'IA Assist', icon: <Sparkles size={16} /> },
+    { id: 'geral', label: 'Módulo', icon: <BookOpen size={16} />, dot: 'bg-emerald-400' },
+    { id: 'metricas', label: 'Métricas', icon: <BarChart2 size={16} />, dot: 'bg-blue-400' },
+    { id: 'ia', label: 'IA Assist', icon: <Sparkles size={16} />, dot: 'bg-purple-400' },
   ] as const;
 
   return (
@@ -600,11 +605,12 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                 onClick={() => setActiveTab(tab.id as any)}
                 className={cn(
                   "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap",
-                  activeTab === tab.id 
-                    ? "bg-white text-pastel-blue shadow-sm border border-gray-100" 
-                    : "text-gray-500 hover:bg-gray-100/50 hover:text-gray-700"
+                  activeTab === tab.id
+                    ? "bg-white text-text-main shadow-sm border border-gray-100"
+                    : "text-gray-400 hover:bg-gray-100/50 hover:text-gray-700"
                 )}
               >
+                <span className={cn('w-2 h-2 rounded-full shrink-0', tab.dot, activeTab === tab.id ? 'opacity-100' : 'opacity-30')} />
                 {tab.icon} {tab.label}
               </button>
             ))}
@@ -755,65 +761,42 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     />
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* TAB: ESTRUTURA */}
-            {activeTab === 'estrutura' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="flex justify-between items-center bg-pastel-bg/30 p-4 rounded-2xl border border-gray-100">
-                  <div>
-                    <h3 className="font-bold text-text-main text-sm">Checklist de Aulas</h3>
-                    <p className="text-xs text-text-muted">Divida o módulo em partes menores.</p>
-                  </div>
-                  <button type="button" onClick={addSubtaskGroup} className="bg-white px-3 py-2 rounded-xl shadow-sm text-pastel-blue hover:text-blue-600 font-bold text-xs flex items-center gap-1 border border-gray-100 transition-transform active:scale-95">
+                {/* ── CHECKLIST DE AULAS ── */}
+                <div className="flex items-center gap-3 pt-2">
+                  <div className="flex-1 h-px bg-gray-100" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Checklist de Aulas</span>
+                  <div className="flex-1 h-px bg-gray-100" />
+                </div>
+                <div className="flex justify-between items-center bg-pastel-bg/30 p-3 rounded-2xl border border-gray-100">
+                  <p className="text-xs text-text-muted">Divida o módulo em grupos de aulas.</p>
+                  <button type="button" onClick={addSubtaskGroup} className="bg-white px-3 py-2 rounded-xl shadow-sm text-pastel-blue hover:text-blue-600 font-bold text-xs flex items-center gap-1 border border-gray-100 active:scale-95">
                     <Plus size={14} /> Novo Grupo
                   </button>
                 </div>
-                
                 {subtasks.length === 0 && (
-                  <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <LayoutList size={32} className="mx-auto text-gray-300 mb-3" />
-                    <p className="text-sm text-text-muted font-medium">Nenhuma sub-tarefa adicionada.</p>
-                    <p className="text-xs text-gray-400 mt-1">Ex: Vídeo aulas, Exercícios de Fixação</p>
+                  <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <LayoutList size={28} className="mx-auto text-gray-300 mb-2" />
+                    <p className="text-sm text-text-muted font-medium">Nenhum grupo ainda.</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Ex: 📺 Vídeo aulas, 📝 Exercícios</p>
                   </div>
                 )}
-                
                 <div className="space-y-4">
                   {subtasks.map((group, gIndex) => (
                     <div key={group.id} className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                      {/* Group Header */}
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-gray-100 text-gray-500 text-xs font-black w-6 h-6 flex items-center justify-center rounded-md shrink-0">
-                          {gIndex + 1}
-                        </div>
-                        <input
-                          type="text"
-                          value={group.title}
-                          onChange={(e) => updateSubtaskGroupTitle(group.id, e.target.value)}
-                          placeholder="Ex: Vídeo aulas"
-                          className="flex-1 bg-transparent font-black text-text-main text-base focus:outline-none placeholder:font-normal"
-                        />
-                        <button type="button" onClick={() => removeSubtaskGroup(group.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1">
-                          <Trash2 size={18} />
-                        </button>
+                        <div className="bg-gray-100 text-gray-500 text-xs font-black w-6 h-6 flex items-center justify-center rounded-md shrink-0">{gIndex + 1}</div>
+                        <input type="text" value={group.title} onChange={(e) => updateSubtaskGroupTitle(group.id, e.target.value)}
+                          placeholder="Ex: 📺 Vídeo aulas" className="flex-1 bg-transparent font-black text-text-main text-base focus:outline-none placeholder:font-normal" />
+                        <button type="button" onClick={() => removeSubtaskGroup(group.id)} className="text-gray-300 hover:text-red-500 transition-colors p-1"><Trash2 size={18} /></button>
                       </div>
-
-                      {/* Group Items */}
                       <div className="pl-9 space-y-2">
                         {(group.items || []).map((item, iIndex) => (
                           <div key={item.id} className="flex items-center gap-2 group/item">
                             <span className="text-xs text-gray-300 font-bold w-4 shrink-0">{iIndex + 1}.</span>
-                            <input
-                              type="text"
-                              value={item.title}
-                              onChange={(e) => updateSubtaskItemTitle(group.id, item.id, e.target.value)}
-                              placeholder="Ex: 📺 1. Introdução (30 min)"
-                              className="flex-1 min-w-0 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pastel-blue transition-all"
-                            />
-                            <button type="button" onClick={() => removeSubtaskItem(group.id, item.id)} className="text-gray-300 hover:text-red-400 p-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                              <X size={16} />
-                            </button>
+                            <input type="text" value={item.title} onChange={(e) => updateSubtaskItemTitle(group.id, item.id, e.target.value)}
+                              placeholder="Ex: Introdução (30 min)" className="flex-1 min-w-0 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-pastel-blue transition-all" />
+                            <button type="button" onClick={() => removeSubtaskItem(group.id, item.id)} className="text-gray-300 hover:text-red-400 p-1 shrink-0 opacity-0 group-hover/item:opacity-100 transition-opacity"><X size={16} /></button>
                           </div>
                         ))}
                         <button type="button" onClick={() => addSubtaskItem(group.id)} className="text-xs font-bold text-gray-400 hover:text-pastel-blue flex items-center gap-1 mt-3 py-1 bg-gray-50/50 px-3 rounded-lg border border-dashed border-gray-200 w-full justify-center">
@@ -825,6 +808,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                 </div>
               </div>
             )}
+
 
             {/* TAB: MÉTRICAS */}
             {activeTab === 'metricas' && (
@@ -917,6 +901,55 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     Cole (Ctrl+V) ou envie prints do seu cronograma, edital ou plataforma de estudos. A IA vai extrair as aulas e preencher a estrutura automaticamente.
                   </p>
                   
+                  <div className="max-w-sm mx-auto mb-6 text-left">
+                    {!isEditingKey ? (
+                      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2 text-green-700">
+                          <CheckCircle2 size={16} />
+                          <span className="text-xs font-bold">Chave API Configurada</span>
+                        </div>
+                        <button 
+                          onClick={() => setIsEditingKey(true)}
+                          className="text-[10px] uppercase font-bold text-green-700 hover:text-green-800 bg-green-100/50 hover:bg-green-100 px-2 py-1 rounded-md transition-colors"
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <label className="text-xs font-bold text-purple-900/60 mb-2 uppercase tracking-wider flex justify-between items-center">
+                          Chave da API do Gemini
+                          {clientApiKey && (
+                            <button onClick={() => setIsEditingKey(false)} className="text-purple-500 hover:text-purple-700 text-[10px] bg-purple-100/50 px-2 py-0.5 rounded transition-colors">Cancelar</button>
+                          )}
+                        </label>
+                        <input 
+                          type="password" 
+                          value={clientApiKey}
+                          onChange={(e) => setClientApiKey(e.target.value)}
+                          placeholder="Cole sua Gemini API Key aqui..."
+                          className="w-full bg-white border border-purple-200 rounded-xl px-4 py-2.5 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all font-mono"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.currentTarget.blur();
+                              if (clientApiKey.trim() === '') {
+                                alert('Por favor, informe a chave da API do Gemini.');
+                                return;
+                              }
+                              setIsEditingKey(false);
+                              if (images.length === 0) {
+                                alert('Chave API salva com sucesso no navegador!');
+                              } else {
+                                processImages();
+                              }
+                            }
+                          }}
+                        />
+                        <p className="text-[10px] text-purple-700/60 mt-2 font-medium">Sua chave fica salva apenas no seu navegador.</p>
+                      </>
+                    )}
+                  </div>
+
                   <button 
                     onClick={() => fileInputRef.current?.click()}
                     className="bg-white text-purple-700 px-6 py-3 rounded-xl shadow-sm border border-purple-100 hover:bg-purple-50 transition-colors font-bold flex items-center gap-2 mx-auto"
@@ -1146,88 +1179,87 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   const totalTime = task.totalTime || 0;
   const efficiency = totalTime > 0 ? Math.round((liquidTime / totalTime) * 100) : 0;
 
+  // Checklist progress
+  const allSubItems = (task.subtasks ?? []).flatMap(g => g.items ?? []);
+  const doneSubItems = allSubItems.filter(i => i.completed).length;
+  const totalSubItems = allSubItems.length;
+  const checklistPct = totalSubItems > 0 ? Math.round((doneSubItems / totalSubItems) * 100) : -1;
+
   return (
-    <div className={cn("p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 transition-all hover:shadow-md", subjectInfo.cardBg)}>
-      
-      {/* Header: Subject, Priority, Edit */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn("text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border flex items-center gap-1", subjectInfo.tagColor)}>
+    <div className={cn("p-4 sm:p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-3 transition-all hover:shadow-md", subjectInfo.cardBg)}>
+
+      {/* Row 1: badges + action buttons */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          <span className={cn("text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md border flex items-center gap-1", subjectInfo.tagColor)}>
             <span>{subjectInfo.emoji}</span> {task.subject}
           </span>
           {task.priority === 'alta' && (
-            <span className="text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-600 border border-red-200 px-2.5 py-1 rounded-md">
-              Alta 🔥
-            </span>
+            <span className="text-[10px] font-bold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-md">Alta 🔥</span>
+          )}
+          {(task.difficulty ?? 0) > 0 && (
+            <div className="flex gap-0.5">
+              {[...Array(task.difficulty)].map((_, i) => <Star key={i} size={11} className="fill-yellow-400 text-yellow-400" />)}
+            </div>
           )}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {onFocus && task.status !== 'concluida' && (
-            <button 
-              onClick={onFocus} 
-              className="text-orange-400 hover:text-orange-600 transition-colors p-1 bg-orange-50 hover:bg-orange-100 rounded-md"
-              title="Focar nesta tarefa"
-            >
-              <Play size={18} fill="currentColor" />
+            <button onClick={onFocus} title="Focar nesta tarefa"
+              className="rounded-xl p-2 text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors">
+              <Play size={15} fill="currentColor" />
             </button>
           )}
-          <button onClick={onEdit} className="text-gray-400 hover:text-text-main transition-colors p-1">
-            <Pencil size={18} />
+          <button onClick={onEdit} title="Editar"
+            className="rounded-xl p-2 text-gray-400 hover:text-text-main hover:bg-white/70 transition-colors">
+            <Pencil size={15} />
           </button>
         </div>
       </div>
 
-      {/* Title & Complete Button */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1">
-          <button onClick={toggleTaskStatus} className={cn("mt-1 transition-colors shrink-0", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-500")}>
-            {task.status === 'concluida' ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-          </button>
-          <div className="flex flex-col gap-1.5">
-            <h3 className={cn("font-bold text-lg leading-tight", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>{task.title}</h3>
-            
-            {/* Always visible metrics & tags */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {task.difficulty > 0 && (
-                <div className="flex gap-0.5">
-                  {[...Array(task.difficulty)].map((_, i) => (
-                    <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-              )}
-              {((task.pomodoros ?? 0) > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  🍅 {task.pomodoros ?? 0}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
-                </span>
-              )}
-              {task.tags && task.tags.map(tag => (
-                <span key={tag} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <Tag size={10} /> {tag}
-                </span>
-              ))}
-              {totalTime > 0 && (
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-gray-200 px-2 py-0.5 rounded-md text-gray-600">
-                  <span className="text-green-600" title="Tempo Líquido (Foco)">⏱️ {formatDuration(liquidTime)}</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-gray-500" title="Tempo Total (Com pausas)">⏳ {formatDuration(totalTime)}</span>
-                  {efficiency > 0 && (
-                    <>
-                      <span className="text-gray-300">|</span>
-                      <span className={cn(efficiency >= 80 ? "text-green-600" : efficiency >= 50 ? "text-yellow-600" : "text-red-600")} title="Eficiência">
-                        ⚡ {efficiency}%
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+      {/* Row 2: complete toggle + title + expand */}
+      <div className="flex items-start gap-3">
+        <button onClick={toggleTaskStatus}
+          className={cn("mt-0.5 transition-all shrink-0 active:scale-90", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-400")}>
+          {task.status === 'concluida' ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <h3 className={cn("font-bold text-base leading-snug", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>
+            {task.title}
+          </h3>
+          {/* Inline badges row */}
+          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+            {(((task.pomodoros ?? 0) > 0) || ((task.estimatedPomodoros ?? 0) > 0)) && (
+              <span className="text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 px-1.5 py-0.5 rounded-md">
+                🍅 {task.pomodoros ?? 0}{(task.estimatedPomodoros ?? 0) > 0 ? `/${task.estimatedPomodoros}` : ''}
+              </span>
+            )}
+            {liquidTime > 0 && (
+              <span className="text-[10px] font-medium text-gray-500 bg-white/80 border border-gray-200 px-1.5 py-0.5 rounded-md">⏱ {formatDuration(liquidTime)}</span>
+            )}
+            {(task.tags ?? []).map(tag => (
+              <span key={tag} className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                <Tag size={9} /> {tag}
+              </span>
+            ))}
           </div>
+          {/* Checklist progress bar */}
+          {checklistPct >= 0 && (
+            <div className="mt-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Checklist</span>
+                <span className="text-[10px] font-bold text-gray-500">{doneSubItems}/{totalSubItems}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-black/8 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${checklistPct}%`, background: checklistPct === 100 ? '#22c55e' : checklistPct >= 50 ? '#60a5fa' : '#fb923c' }} />
+              </div>
+            </div>
+          )}
         </div>
-        <button 
-          onClick={() => setIsExpanded(!isExpanded)} 
-          className="p-2 rounded-full bg-white text-gray-500 hover:text-gray-800 hover:bg-gray-50 transition-colors shadow-md border border-gray-200 shrink-0 mt-1 flex items-center justify-center h-8 w-8"
-        >
-          {isExpanded ? <ChevronUp size={20} strokeWidth={2.5} /> : <ChevronDown size={20} strokeWidth={2.5} />}
+        <button onClick={() => setIsExpanded(!isExpanded)}
+          className="p-1.5 rounded-full bg-white text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors shadow-sm border border-gray-200 shrink-0 mt-0.5">
+          {isExpanded ? <ChevronUp size={17} strokeWidth={2.5} /> : <ChevronDown size={17} strokeWidth={2.5} />}
         </button>
       </div>
 
@@ -1303,8 +1335,8 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
       {/* Notes Snippet */}
       {task.notes && (
         <div className="pl-9 mt-1">
-          <div className="bg-pastel-bg p-3 rounded-xl text-xs text-text-muted italic border border-gray-100">
-            "{task.notes}"
+          <div className="bg-pastel-bg p-3 rounded-xl text-xs text-text-muted italic border border-gray-100 leading-relaxed whitespace-pre-wrap">
+            <span className="not-italic text-text-main">&ldquo;</span>{task.notes}<span className="not-italic text-text-main">&rdquo;</span>
           </div>
         </div>
       )}
@@ -1336,11 +1368,35 @@ function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) =
     );
   }
 
+  const totalPomodoros = completedTasks.reduce((s, t) => s + (t.pomodoros ?? 0), 0);
+  const totalFocusSec = completedTasks.reduce((s, t) => s + (t.liquidTime ?? 0), 0);
+  const fh = Math.floor(totalFocusSec / 3600);
+  const fm = Math.floor((totalFocusSec % 3600) / 60);
+  const focusStr = fh > 0 ? `${fh}h ${fm}m` : `${fm}m`;
+  const allQ = completedTasks.reduce((s, t) => s + (t.questionsTotal ?? 0), 0);
+  const correctQ = completedTasks.reduce((s, t) => s + (t.questionsCorrect ?? 0), 0);
+  const avgPct = allQ > 0 ? Math.round((correctQ / allQ) * 100) : null;
+
   return (
     <div className="space-y-4 pb-20 max-w-2xl mx-auto">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Concluídas', value: completedTasks.length, emoji: '✅' },
+          { label: 'Pomodoros', value: totalPomodoros, emoji: '🍅' },
+          { label: 'Tempo focado', value: focusStr, emoji: '⏱️' },
+          { label: 'Acerto médio', value: avgPct !== null ? `${avgPct}%` : '—', emoji: '🎯' },
+        ].map(stat => (
+          <div key={stat.label} className="bg-white rounded-2xl border border-gray-100 p-3 shadow-sm text-center">
+            <p className="text-xl mb-0.5">{stat.emoji}</p>
+            <p className="text-xl font-black text-text-main tabular-nums">{stat.value}</p>
+            <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mt-0.5">{stat.label}</p>
+          </div>
+        ))}
+      </div>
       {completedTasks.map(task => (
         <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
       ))}
     </div>
   );
 }
+

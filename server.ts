@@ -21,13 +21,13 @@ async function startServer() {
   // Gemini AI Route
   app.post("/api/gemini", async (req, res) => {
     try {
-      const { contents } = req.body;
+      const { contents, apiKey: clientApiKey } = req.body;
       
-      // Tenta usar a chave customizada primeiro, depois a padrão
-      const apiKey = process.env.CHAVE_CUSTOMIZADA || process.env.GEMINI_API_KEY;
+      // Tenta usar a chave enviada pelo cliente, depois a customizada, depois a padrão
+      const apiKey = clientApiKey || process.env.CHAVE_CUSTOMIZADA || process.env.GEMINI_API_KEY;
 
       if (!apiKey) {
-        return res.status(500).json({ error: "A chave da API não está configurada no servidor." });
+        return res.status(500).json({ error: "A chave da API não está configurada no servidor e não foi fornecida pelo app." });
       }
 
       const ai = new GoogleGenAI({ apiKey: apiKey });
