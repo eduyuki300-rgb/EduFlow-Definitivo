@@ -6,6 +6,8 @@ import { db } from '../firebase';
 import { doc, updateDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { playSuccessSound } from '../utils/audio';
+
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -53,7 +55,7 @@ export function PomodoroWidget({ tasks, onEnterImmersive }: PomodoroWidgetProps)
 
   const handleComplete = async () => {
     setIsRunning(false);
-    playChime();
+    playSuccessSound(true);
     
     if (mode === 'focus' && selectedTaskId) {
       try {
@@ -76,26 +78,7 @@ export function PomodoroWidget({ tasks, onEnterImmersive }: PomodoroWidgetProps)
     }
   };
 
-  const playChime = () => {
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 1);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 1);
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // removed local playChime, now using from utils via playSuccessSound alias
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);

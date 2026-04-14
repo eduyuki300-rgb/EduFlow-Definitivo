@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { doc, increment, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { playSuccessSound } from '../utils/audio';
+
 
 export type FocusTimerMode = 'pomodoro' | 'stopwatch';
 export type FocusTimerStatus = 'idle' | 'running' | 'paused' | 'break' | 'break-paused' | 'finished';
@@ -29,48 +31,7 @@ function readStoredBool(key: string, def: boolean): boolean {
   }
 }
 
-// Audio Singleton to prevent memory leaks and AudioContext exhaustion
-let sharedAudioContext: AudioContext | null = null;
-function getAudioContext() {
-  if (typeof window === 'undefined') return null;
-  if (!sharedAudioContext) {
-    const AC = window.AudioContext || (window as any).webkitAudioContext;
-    if (AC) sharedAudioContext = new AC();
-  }
-  return sharedAudioContext;
-}
-
-function playChime(isCompletion = false) {
-  try {
-    if (isCompletion && typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([200, 100, 200, 100, 400]);
-    }
-    
-    const ctx = getAudioContext();
-    if (!ctx) return;
-    
-    // Resume context if suspended (common in browsers)
-    if (ctx.state === 'suspended') void ctx.resume();
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 1);
-
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 1);
-  } catch (e) {
-    console.error('[FocusSession] Audio error:', e);
-  }
-}
+// removed local playChime, now using from utils via playSuccessSound alias or directly as playSuccessSound
 
 export function useFocusSession(taskId: string, taskTitle: string = 'Foco') {
   const [mode, setMode] = useState<FocusTimerMode>('pomodoro');
@@ -257,10 +218,12 @@ export function useFocusSession(taskId: string, taskTitle: string = 'Foco') {
 
   const onPomodoroCompleteRef = useRef<() => void>(() => {});
   onPomodoroCompleteRef.current = () => {
-    playChime(true);
+    playSuccessSound(true);
     const nextCycle = focusCyclesRef.current + 1;
     setFocusCycles(nextCycle);
-    void persistToFirestore(true);
+    void persistToFirestore(true).then(() => {
+      // In strict mode, we might want to trigger something after save, but for now we follow the existing logic
+    }).catch(err => console.error("Critical: Failed to save completed Pomodoro:", err));
 
     if (isStrictModeRef.current) {
       setStatus('break');
@@ -272,7 +235,7 @@ export function useFocusSession(taskId: string, taskTitle: string = 'Foco') {
 
   const onBreakCompleteRef = useRef<() => void>(() => {});
   onBreakCompleteRef.current = () => {
-    playChime(true);
+    playSuccessSound(true);
     if (isStrictModeRef.current) {
       setStatus('running');
       setTimeLeft(focusDurationRef.current);
@@ -365,11 +328,11 @@ export function useFocusSession(taskId: string, taskTitle: string = 'Foco') {
     setStatus('idle');
   }, [mode, focusDuration]);
 
-  const skipToComplete = useCallback(() => {
+  const skipToComplete = useCallback(async () => {
     if (mode !== 'pomodoro' || status !== 'running') return;
-    playChime();
+    playSuccessSound();
     setStatus('finished');
-    void persistToFirestore(true);
+    await persistToFirestore(true);
     setTimeLeft(0);
   }, [mode, status, persistToFirestore]);
 
@@ -425,7 +388,7 @@ export function useFocusSession(taskId: string, taskTitle: string = 'Foco') {
     skipBreakNewFocus,
     closeAfterPersist,
     discardSessionTime,
-    playChime,
+    playSuccessSound,
   };
 }
 

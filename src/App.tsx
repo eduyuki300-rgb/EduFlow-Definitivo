@@ -18,32 +18,9 @@ import { FocusMode } from './components/FocusMode';
 import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
 import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
+import { playSuccessSound } from './utils/audio';
 
-const playSuccessSound = () => {
-  try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-    osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); // C6
-    
-    gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.5);
-  } catch (e) {
-    console.error("Audio play failed", e);
-  }
-};
+// removed local playSuccessSound, now using from utils
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -92,7 +69,7 @@ export default function App() {
     { id: 'hoje', label: 'Hoje', icon: CalendarDays, color: 'text-pastel-peach' },
     { id: 'semana', label: 'Semana', icon: CalendarRange, color: 'text-pastel-blue' },
     { id: 'inbox', label: 'Inbox', icon: Inbox, color: 'text-pastel-lavender' },
-    { id: 'historico', label: 'Histórico', icon: History, color: 'text-pastel-cream' },
+    { id: 'concluida', label: 'Histórico', icon: History, color: 'text-pastel-cream' },
   ] as const;
 
   if (!isAuthReady) {
@@ -140,7 +117,7 @@ export default function App() {
             {activeTab === 'hoje' && 'Foco máximo. Um passo de cada vez.'}
             {activeTab === 'semana' && 'Visão geral da sua jornada.'}
             {activeTab === 'inbox' && 'Despeje tudo aqui.'}
-            {activeTab === 'historico' && 'Tudo que você já conquistou.'}
+            {activeTab === 'concluida' && 'Tudo que você já conquistou.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -185,7 +162,7 @@ export default function App() {
             {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
             {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
             {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
-            {activeTab === 'historico' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
+            {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
           </motion.div>
         </AnimatePresence>
       </main>
@@ -242,7 +219,7 @@ export default function App() {
         isOpen={isModalOpen} 
         onClose={(status) => {
           setIsModalOpen(false);
-          if (status && status !== activeTab && ['hoje', 'semana', 'inbox', 'historico'].includes(status)) {
+          if (status && status !== activeTab && ['hoje', 'semana', 'inbox', 'concluida'].includes(status)) {
             setActiveTab(status as Tab);
           }
         }} 
@@ -527,6 +504,20 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
     e.preventDefault();
     if (!title.trim() || isSubmitting) return;
 
+    // Strict validation for Firestore rules
+    const finalTitle = title.trim();
+    const finalSubject = subject || 'Geral';
+    
+    if (finalTitle.length < 1 || finalTitle.length > 150) {
+      alert("O título deve ter entre 1 e 150 caracteres.");
+      return;
+    }
+    
+    if (finalSubject.length < 1 || finalSubject.length > 50) {
+      alert("A matéria deve ter entre 1 e 50 caracteres.");
+      return;
+    }
+
     setIsSubmitting(true);
     const cleanedSubtasks = subtasks
       .map(st => ({
@@ -537,8 +528,8 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
       .filter(st => st.title !== 'Sem título' || st.items.length > 0);
 
     const taskData = {
-      title: title.trim(),
-      subject: subject || 'Geral',
+      title: finalTitle,
+      subject: finalSubject,
       priority,
       status,
       subtasks: cleanedSubtasks,
@@ -556,17 +547,20 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
     try {
       if (taskToEdit) {
-        updateDoc(doc(db, 'tasks', taskToEdit.id), taskData).catch(error => console.error("Error saving task", error));
+        await updateDoc(doc(db, 'tasks', taskToEdit.id), taskData);
         playSuccessSound();
       } else {
-        addDoc(collection(db, 'tasks'), {
+        await addDoc(collection(db, 'tasks'), {
           ...taskData,
           userId: user.uid,
           createdAt: serverTimestamp()
-        }).catch(error => console.error("Error saving task", error));
+        });
         playSuccessSound();
       }
       onClose(taskData.status);
+    } catch (error) {
+      console.error("Error saving task", error);
+      alert("Erro ao salvar a tarefa. Por favor, tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -576,8 +570,11 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
     if (!taskToEdit || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      deleteDoc(doc(db, 'tasks', taskToEdit.id)).catch(error => console.error("Error deleting task", error));
+      await deleteDoc(doc(db, 'tasks', taskToEdit.id));
       onClose();
+    } catch (error) {
+      console.error("Error deleting task", error);
+      alert("Erro ao excluir a tarefa.");
     } finally {
       setIsSubmitting(false);
     }

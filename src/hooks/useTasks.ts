@@ -27,7 +27,10 @@ export function useTasks(userId: string | undefined) {
       
       setTasks(tasksData);
     }, (error) => {
-      console.error("Error fetching tasks:", error);
+      console.error("[useTasks] Critical: Error fetching tasks for user:", userId, error);
+      if (error.code === 'permission-denied') {
+        console.warn("[useTasks] Permission denied. Check security rules or authentication state.");
+      }
     });
 
     return () => unsubscribe();
