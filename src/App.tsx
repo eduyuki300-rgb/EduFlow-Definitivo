@@ -513,7 +513,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
     const taskData = {
       title: title.trim(),
-      subject,
+      subject: subject || 'Geral',
       priority,
       status,
       subtasks: cleanedSubtasks,
