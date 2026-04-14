@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, Upload, Image as ImageIcon, Loader2, LayoutList, BarChart2, Sparkles, Tag, Clock, ChevronDown, ChevronUp, Search, CloudRain, Snowflake, Droplets, Droplet, Play } from 'lucide-react';
+import { CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, Upload, Image as ImageIcon, Loader2, LayoutList, Grid, BarChart2, Sparkles, Tag, Clock, ChevronDown, ChevronUp, Search, CloudRain, Snowflake, Droplets, Droplet, Play } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { auth, db, loginWithGoogle, logout } from './firebase';
@@ -72,6 +72,7 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
   const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
+  const [focusView, setFocusView] = useState<'full' | 'minimized'>('full');
 
   useEffect(() => {
     localStorage.setItem('eduflow_bgeffect', bgEffect);
@@ -183,7 +184,7 @@ export default function App() {
           >
             {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
             {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
-            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
+            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
             {activeTab === 'historico' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
           </motion.div>
         </AnimatePresence>
@@ -239,7 +240,12 @@ export default function App() {
       {/* Create/Edit Task Modal */}
       <TaskModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={(status) => {
+          setIsModalOpen(false);
+          if (status && status !== activeTab && ['hoje', 'semana', 'inbox', 'historico'].includes(status)) {
+            setActiveTab(status as Tab);
+          }
+        }} 
         user={user}
         taskToEdit={taskToEdit}
       />
@@ -247,8 +253,12 @@ export default function App() {
       <AnimatePresence>
         {activeFocusTask && (
           <FocusMode 
+            key={activeFocusTask.id}
             task={activeFocusTask} 
-            onClose={() => setActiveFocusTask(null)} 
+            view={focusView}
+            onViewChange={setFocusView}
+            onClose={() => setActiveFocusTask(null)}
+            playSuccessSound={playSuccessSound}
           />
         )}
       </AnimatePresence>
@@ -257,7 +267,7 @@ export default function App() {
 }
 
 // Modal Component
-function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onClose: () => void, user: User, taskToEdit?: Task }) {
+function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onClose: (s?: string) => void, user: User, taskToEdit?: Task }) {
   const [activeTab, setActiveTab] = useState<'geral' | 'estrutura' | 'metricas' | 'ia'>('geral');
   
   const [title, setTitle] = useState('');
@@ -277,6 +287,8 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   const [estimatedPomodoros, setEstimatedPomodoros] = useState<number>(0);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [jsonImportText, setJsonImportText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -352,66 +364,77 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const processImages = async () => {
-    if (images.length === 0) return;
+  const processImportedJson = async () => {
+    if (!jsonImportText.trim()) {
+      alert("Cole o código JSON gerado pelo Gemini primeiro.");
+      return;
+    }
+    
     setIsExtracting(true);
     try {
-      const prompt = `
-        Você é um tutor especialista em ENEM e organização de estudos de alto rendimento. 
-        Analise as imagens fornecidas (prints de cronogramas, plataformas de estudo, editais ou listas de tarefas).
-        Extraia as informações e estruture um plano de estudo otimizado.
-        
-        Retorne um objeto JSON estrito com a seguinte estrutura:
-        {
-          "title": "Nome do Módulo Principal (ex: Genética - Leis de Mendel)",
-          "subject": "Uma destas exatas opções: Geral, Biologia, Física, Química, Matemática, Linguagens, Humanas, Redação",
-          "estimatedPomodoros": número inteiro (estime 1 pomodoro de 25min para cada 30min de conteúdo/exercícios),
-          "difficulty": número de 1 a 3 (1=Fácil, 2=Médio, 3=Difícil, baseado na complexidade do tema para o ENEM),
-          "tags": ["array", "de", "strings", "curtas", "ex: ENEM", "Revisão", "Natureza"],
-          "subtasks": [
-            {
-              "title": "Nome do Grupo (ex: 📺 Vídeo Aulas, 📝 Exercícios de Fixação)",
-              "items": [
-                { "title": "Nome do item específico (ex: 1. Introdução à Genética (30 min))" }
-              ]
-            }
-          ]
-        }
-        Retorne APENAS o JSON válido, sem formatação markdown (sem \`\`\`json) ou texto adicional.
-      `;
-
-      const contents = {
-        parts: [
-          { text: prompt },
-          ...images.map((base64: string) => {
-            const isDataUrl = base64.includes(',');
-            const base64Data = isDataUrl ? base64.split(',')[1] : base64;
-            const mimeType = isDataUrl ? base64.split(',')[0].split(':')[1].split(';')[0] : "image/jpeg";
-            return {
-              inlineData: {
-                data: base64Data,
-                mimeType: mimeType
+      // Try the AI API call first, if it fails or if there's no images, fallback to JSON text
+      let text = '';
+      if (images.length > 0) {
+        const prompt = `
+          Você é um tutor especialista em ENEM e organização de estudos de alto rendimento. 
+          Analise as imagens fornecidas (prints de cronogramas, plataformas de estudo, editais ou listas de tarefas).
+          Extraia as informações e estruture um plano de estudo otimizado.
+          
+          Retorne um objeto JSON estrito com a seguinte estrutura:
+          {
+            "title": "Nome do Módulo Principal (ex: Genética - Leis de Mendel)",
+            "subject": "Uma destas exatas opções: Geral, Biologia, Física, Química, Matemática, Linguagens, Humanas, Redação",
+            "estimatedPomodoros": número inteiro (estime 1 pomodoro de 25min para cada 30min de conteúdo/exercícios),
+            "difficulty": número de 1 a 3 (1=Fácil, 2=Médio, 3=Difícil, baseado na complexidade do tema para o ENEM),
+            "tags": ["array", "de", "strings", "curtas", "ex: ENEM", "Revisão", "Natureza"],
+            "subtasks": [
+              {
+                "title": "Nome do Grupo (ex: 📺 Vídeo Aulas, 📝 Exercícios de Fixação)",
+                "items": [
+                  { "title": "Nome do item específico (ex: 1. Introdução à Genética (30 min))" }
+                ]
               }
-            };
-          })
-        ]
-      };
+            ]
+          }
+          Retorne APENAS o JSON válido, sem formatação markdown (sem \`\`\`json) ou texto adicional.
+        `;
 
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents })
-      });
+        const contents = {
+          parts: [
+            { text: prompt },
+            ...images.map((base64: string) => {
+              const isDataUrl = base64.includes(',');
+              const base64Data = isDataUrl ? base64.split(',')[1] : base64;
+              const mimeType = isDataUrl ? base64.split(',')[0].split(':')[1].split(';')[0] : "image/jpeg";
+              return {
+                inlineData: {
+                  data: base64Data,
+                  mimeType: mimeType
+                }
+              };
+            })
+          ]
+        };
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro na API do Gemini');
+        const response = await fetch('/api/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Erro na API do Gemini');
+        }
+
+        const responseData = await response.json();
+        text = responseData.text;
+      } else {
+        text = jsonImportText.trim();
+        text = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
       }
 
-      const responseData = await response.json();
-      const text = responseData.text;
-      
-      if (!text) throw new Error("Resposta vazia da IA");
+      if (!text) throw new Error("Entrada vazia. Use imagens ou cole o JSON.");
       
       const data = JSON.parse(text);
       
@@ -434,11 +457,12 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
         }));
         setSubtasks(newSubtasks);
       }
-      setImages([]);
+      
+      setJsonImportText('');
       setActiveTab('geral');
     } catch (error: any) {
       console.error(error);
-      alert(error.message || 'Erro ao extrair dados das imagens. Verifique se as imagens estão legíveis.');
+      alert('Erro ao interpretar o JSON. Certifique-se de que o Gemini retornou o formato perfeito de código JSON e tente novamente.');
     } finally {
       setIsExtracting(false);
     }
@@ -501,8 +525,9 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim() || isSubmitting) return;
 
+    setIsSubmitting(true);
     const cleanedSubtasks = subtasks
       .map(st => ({
         ...st,
@@ -531,27 +556,30 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
     try {
       if (taskToEdit) {
-        await updateDoc(doc(db, 'tasks', taskToEdit.id), taskData);
+        updateDoc(doc(db, 'tasks', taskToEdit.id), taskData).catch(error => console.error("Error saving task", error));
+        playSuccessSound();
       } else {
-        await addDoc(collection(db, 'tasks'), {
+        addDoc(collection(db, 'tasks'), {
           ...taskData,
           userId: user.uid,
           createdAt: serverTimestamp()
-        });
+        }).catch(error => console.error("Error saving task", error));
+        playSuccessSound();
       }
-      onClose();
-    } catch (error) {
-      console.error("Error saving task", error);
+      onClose(taskData.status);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!taskToEdit) return;
+    if (!taskToEdit || isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      await deleteDoc(doc(db, 'tasks', taskToEdit.id));
+      deleteDoc(doc(db, 'tasks', taskToEdit.id)).catch(error => console.error("Error deleting task", error));
       onClose();
-    } catch (error) {
-      console.error("Error deleting task", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -608,14 +636,14 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
           <div className="mt-auto p-4 hidden sm:block">
             <button
               onClick={handleSubmit}
-              disabled={!title.trim()}
+              disabled={!title.trim() || isSubmitting}
               className="w-full bg-text-main text-white py-3 rounded-xl font-black text-sm disabled:opacity-50 hover:bg-gray-800 hover:shadow-md transition-all active:scale-[0.98]"
             >
-              {taskToEdit ? 'Salvar Alterações' : 'Criar Módulo'}
+              {isSubmitting ? (taskToEdit ? 'Salvando...' : 'Criando...') : (taskToEdit ? 'Salvar Alterações' : 'Criar Módulo')}
             </button>
             {taskToEdit && (
-              <button onClick={handleDelete} className="w-full mt-2 py-2 text-red-500 text-sm font-bold hover:bg-red-50 rounded-xl transition-colors">
-                Excluir Módulo
+              <button onClick={handleDelete} disabled={isSubmitting} className="w-full mt-2 py-2 text-red-500 text-sm font-bold hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50">
+                {isSubmitting ? 'Excluindo...' : 'Excluir Módulo'}
               </button>
             )}
           </div>
@@ -898,7 +926,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
               </div>
             )}
 
-            {/* TAB: IA */}
+            {/* TAB: IA (Import) */}
             {activeTab === 'ia' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-3xl border border-purple-100 text-center">
@@ -906,61 +934,32 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     <Sparkles size={32} className="text-purple-500" />
                   </div>
                   <h3 className="text-lg font-black text-purple-900 mb-2">
-                    Preenchimento Mágico
+                    Importação Mágica
                   </h3>
                   <p className="text-sm text-purple-700/80 mb-6 max-w-sm mx-auto">
-                    Cole (Ctrl+V) ou envie prints do seu cronograma, edital ou plataforma de estudos. A IA vai extrair as aulas e preencher a estrutura automaticamente.
+                    Cole abaixo o código JSON gerado pelo seu assistente personalizado Gemini (Gem).
                   </p>
                   
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-white text-purple-700 px-6 py-3 rounded-xl shadow-sm border border-purple-100 hover:bg-purple-50 transition-colors font-bold flex items-center gap-2 mx-auto"
-                  >
-                    <Upload size={18} /> Selecionar Imagens
-                  </button>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    accept="image/*" 
-                    multiple 
-                    className="hidden" 
-                  />
-                </div>
-
-                {images.length > 0 && (
-                  <div className="space-y-4 bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider">Imagens Selecionadas</h4>
-                    <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                      {images.map((img, idx) => (
-                        <div key={idx} className="relative shrink-0 w-24 h-24 rounded-xl border border-gray-200 overflow-hidden group">
-                          <img src={img} alt="preview" className="w-full h-full object-cover" />
-                          <button 
-                            onClick={() => removeImage(idx)}
-                            className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                          >
-                            <X size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    <button
-                      onClick={processImages}
-                      disabled={isExtracting}
-                      className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white text-sm font-black rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-70 shadow-sm"
-                    >
-                      {isExtracting ? (
-                        <>
-                          <Loader2 size={18} className="animate-spin" /> Processando com IA...
-                        </>
-                      ) : (
-                        <>
-                          <Brain size={18} /> Extrair Dados Agora
-                        </>
-                      )}
-                    </button>
+                  <div className="w-full mb-6">
+                    <textarea 
+                      value={jsonImportText}
+                      onChange={(e) => setJsonImportText(e.target.value)}
+                      placeholder='{ "title": "Genética", "subject": "Biologia", ... }'
+                      className="w-full bg-white border border-purple-200 rounded-xl px-4 py-4 text-xs font-mono text-text-main focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all custom-scrollbar resize-none h-48"
+                    />
                   </div>
-                )}
+                  <button 
+                    onClick={processImportedJson}
+                    disabled={isExtracting || !jsonImportText.trim()}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white font-black py-4 rounded-xl shadow-md transition-all uppercase tracking-wider text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isExtracting ? (
+                      <><Loader2 size={20} className="animate-spin" /> Adicionando Tarefas...</>
+                    ) : (
+                      <><Sparkles size={20} /> Preencher Estrutura</>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -970,14 +969,14 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
           <div className="p-4 border-t border-gray-100 bg-white sm:hidden">
             <button
               onClick={handleSubmit}
-              disabled={!title.trim()}
+              disabled={!title.trim() || isSubmitting}
               className="w-full bg-text-main text-white py-3.5 rounded-xl font-black text-base disabled:opacity-50 hover:bg-gray-800 transition-all active:scale-[0.98]"
             >
-              {taskToEdit ? 'Salvar Alterações' : 'Criar Módulo'}
+              {isSubmitting ? (taskToEdit ? 'Salvando...' : 'Criando...') : (taskToEdit ? 'Salvar Alterações' : 'Criar Módulo')}
             </button>
             {taskToEdit && (
-              <button onClick={handleDelete} className="w-full mt-2 py-2.5 text-red-500 text-sm font-bold hover:bg-red-50 rounded-xl transition-colors">
-                Excluir Módulo
+              <button onClick={handleDelete} disabled={isSubmitting} className="w-full mt-2 py-2.5 text-red-500 text-sm font-bold hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50">
+                {isSubmitting ? 'Excluindo...' : 'Excluir Módulo'}
               </button>
             )}
           </div>
@@ -1012,40 +1011,102 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
   );
 }
 
-function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
-  const inboxTasks = tasks.filter(t => t.status === 'inbox');
+function InboxTab({ tasks, onEdit, onFocus }: { tasks: Task[], onEdit: (task: Task) => void, onFocus: (task: Task) => void }) {
+  const [isGrouped, setIsGrouped] = React.useState(() => {
+    return localStorage.getItem('eduflow_inbox_grouped') !== 'false';
+  });
 
-  const moveToHoje = async (task: Task) => {
-    try {
-      await updateDoc(doc(db, 'tasks', task.id), { status: 'hoje' });
-    } catch (error) {
-      console.error("Error moving task", error);
-    }
-  };
+  React.useEffect(() => {
+    localStorage.setItem('eduflow_inbox_grouped', String(isGrouped));
+  }, [isGrouped]);
+  const inboxTasks = tasks.filter(t => t.status === 'inbox');
+  
+  // Group tasks by subject
+  const groupedTasks = React.useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    inboxTasks.forEach(task => {
+      if (!groups[task.subject]) groups[task.subject] = [];
+      groups[task.subject].push(task);
+    });
+    // Sort subjects by task count
+    return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  }, [inboxTasks]);
+
+  if (inboxTasks.length === 0) {
+    return (
+      <div className="mt-12 flex min-h-[40dvh] flex-col items-center justify-center px-4 text-center sm:mt-20">
+        <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-200">
+          <Inbox size={40} className="text-gray-400" />
+        </div>
+        <h3 className="text-xl font-black text-gray-800 mb-2">Inbox Limpo!</h3>
+        <p className="text-gray-500 max-w-xs">Sua caixa de entrada está vazia. Capture novas ideias ou tarefas pendentes aqui.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto w-full">
-        {inboxTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center mt-20">
-            <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-200">
-              <Inbox size={40} className="text-gray-400" />
-            </div>
-            <h3 className="text-xl font-black text-gray-800 mb-2">Inbox Limpo!</h3>
-            <p className="text-gray-500 max-w-xs">Sua caixa de entrada está vazia. Use o botão + para adicionar novas ideias ou tarefas.</p>
+    <div className="flex h-full min-h-0 flex-col max-w-2xl mx-auto w-full px-1 pb-20">
+      {/* Inbox Header / Stats */}
+      <div className="mb-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <h2 className="text-sm font-black text-text-main flex items-center gap-2">
+              <div className="w-1.5 h-4 bg-pastel-blue rounded-full" />
+              CENTRO DE TRIAGEM
+            </h2>
+            <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider pl-3.5">
+              {inboxTasks.length} {inboxTasks.length === 1 ? 'item pendente' : 'itens pendentes'}
+            </p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
-            {inboxTasks.map(task => (
-              <div key={task.id} className="relative group">
-                <TaskCard task={task} onEdit={() => onEdit(task)} />
-                <button
-                  onClick={() => moveToHoje(task)}
-                  className="absolute top-4 right-12 text-[10px] font-bold bg-pastel-peach/50 text-orange-800 px-2 py-1 rounded-lg hover:bg-pastel-peach transition-all opacity-0 group-hover:opacity-100"
-                >
-                  Mover p/ Hoje
-                </button>
+          <button 
+            onClick={() => setIsGrouped(!isGrouped)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 bg-white text-[10px] font-bold text-text-muted hover:text-text-main transition-colors shadow-sm active:scale-95"
+          >
+            {isGrouped ? <LayoutList size={14} /> : <Grid size={14} />}
+            {isGrouped ? 'Ver em Lista' : 'Agrupar por Matéria'}
+          </button>
+        </div>
+
+        {isGrouped && (
+          <div className="flex flex-wrap gap-2 py-1">
+            {groupedTasks.map(([subject, items]) => {
+              const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
+              return (
+                <div key={subject} className={cn("px-2.5 py-1 rounded-full border text-[10px] font-bold flex items-center gap-1.5", info.cardBg, info.tagColor)}>
+                  <span>{info.emoji}</span>
+                  {subject}
+                  <span className="opacity-40 ml-0.5">{items.length}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Main List */}
+      <div className="space-y-6">
+        {isGrouped ? (
+          groupedTasks.map(([subject, items]) => {
+            const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
+            return (
+              <div key={subject} className="space-y-3">
+                <div className="flex items-center gap-3 px-2">
+                  <div className={cn("w-1 h-3 rounded-full", info.tagColor.split(' ')[0])} />
+                  <h3 className="text-[11px] font-black text-text-muted uppercase tracking-[0.1em]">{subject}</h3>
+                  <div className="flex-1 h-[1px] bg-gray-100" />
+                </div>
+                <div className="space-y-3">
+                  {items.map(task => (
+                    <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
+                  ))}
+                </div>
               </div>
+            );
+          })
+        ) : (
+          <div className="space-y-3">
+            {inboxTasks.map(task => (
+              <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} onFocus={() => onFocus(task)} />
             ))}
           </div>
         )}
@@ -1054,7 +1115,7 @@ function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => vo
   );
 }
 
-function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: React.Key }) {
+function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, onFocus?: () => void, key?: React.Key }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
 
   // Toggle subtask directly from card
@@ -1141,6 +1202,12 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
   const totalTime = task.totalTime || 0;
   const efficiency = totalTime > 0 ? Math.round((liquidTime / totalTime) * 100) : 0;
 
+  // Checklist progress logic
+  const subtasks = task.subtasks || [];
+  const totalSubItems = subtasks.reduce((acc, group) => acc + (group.items?.length || 0), 0);
+  const doneSubItems = subtasks.reduce((acc, group) => acc + (group.items?.filter(i => i.completed).length || 0), 0);
+  const checklistPct = totalSubItems > 0 ? Math.round((doneSubItems / totalSubItems) * 100) : -1;
+
   return (
     <div className={cn("p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 transition-all hover:shadow-md", subjectInfo.cardBg)}>
       
@@ -1156,56 +1223,98 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
             </span>
           )}
         </div>
-        <button onClick={onEdit} className="text-gray-300 hover:text-pastel-blue transition-all p-1.5 hover:bg-pastel-blue/10 rounded-lg">
-          <Pencil size={18} />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {task.status === 'inbox' ? (
+            <div className="flex items-center gap-1 mr-1">
+              <button 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try { await updateDoc(doc(db, 'tasks', task.id), { status: 'hoje', updatedAt: serverTimestamp() }); } catch (error) { console.error(error); }
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-600 border border-orange-100 rounded-lg text-[10px] font-bold hover:bg-orange-100 transition-colors"
+              >
+                🎯 Hoje
+              </button>
+              <button 
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try { await updateDoc(doc(db, 'tasks', task.id), { status: 'semana', updatedAt: serverTimestamp() }); } catch (error) { console.error(error); }
+                }}
+                className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors"
+              >
+                🗓 Semana
+              </button>
+            </div>
+          ) : (
+            <select 
+              value={task.status}
+              onChange={async (e) => {
+                try {
+                  await updateDoc(doc(db, 'tasks', task.id), { status: e.target.value as Status, updatedAt: serverTimestamp() });
+                  if (e.target.value === 'concluida' && task.status !== 'concluida') playSuccessSound();
+                } catch (error) { console.error(error); }
+              }}
+              className="text-[10px] font-semibold bg-gray-50 text-gray-600 border border-gray-200 hover:border-pastel-blue transition-colors rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-pastel-blue cursor-pointer"
+            >
+              <option value="inbox">📥 Inbox</option>
+              <option value="semana">🗓 A Fazer</option>
+              <option value="hoje">🎯 Hoje</option>
+              <option value="concluida">✅ Concl.</option>
+            </select>
+          )}
+          
+          {onFocus && task.status !== 'concluida' && (
+            <button onClick={onFocus} title="Focar nesta tarefa"
+              className="rounded-xl p-2 text-orange-500 bg-orange-50 hover:bg-orange-100 transition-colors">
+              <Play size={15} fill="currentColor" />
+            </button>
+          )}
+          <button onClick={onEdit} title="Editar"
+            className="rounded-xl p-2 text-gray-400 hover:text-text-main hover:bg-white/70 transition-colors">
+            <Pencil size={15} />
+          </button>
+        </div>
       </div>
 
-      {/* Title & Complete Button */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1">
-          <button onClick={toggleTaskStatus} className={cn("mt-1 transition-colors shrink-0", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-500")}>
-            {task.status === 'concluida' ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-          </button>
-          <div className="flex flex-col gap-1.5">
-            <h3 className={cn("font-bold text-lg leading-tight", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>{task.title}</h3>
-            
-            {/* Always visible metrics & tags */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {task.difficulty > 0 && (
-                <div className="flex gap-0.5">
-                  {[...Array(task.difficulty)].map((_, i) => (
-                    <Star key={i} size={12} className="fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-              )}
-              {(task.pomodoros > 0 || (task.estimatedPomodoros && task.estimatedPomodoros > 0)) && (
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  🍅 {task.pomodoros}{task.estimatedPomodoros ? `/${task.estimatedPomodoros}` : ''}
-                </span>
-              )}
-              {task.tags && task.tags.map(tag => (
-                <span key={tag} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 border border-gray-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <Tag size={10} /> {tag}
-                </span>
-              ))}
-              {totalTime > 0 && (
-                <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider bg-white border border-gray-200 px-2 py-0.5 rounded-md text-gray-600">
-                  <span className="text-green-600" title="Tempo Líquido (Foco)">⏱️ {formatDuration(liquidTime)}</span>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-gray-500" title="Tempo Total (Com pausas)">⏳ {formatDuration(totalTime)}</span>
-                  {efficiency > 0 && (
-                    <>
-                      <span className="text-gray-300">|</span>
-                      <span className={cn(efficiency >= 80 ? "text-green-600" : efficiency >= 50 ? "text-yellow-600" : "text-red-600")} title="Eficiência">
-                        ⚡ {efficiency}%
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
+      {/* Row 2: Title */}
+      <div className="flex items-start gap-4">
+        <button onClick={toggleTaskStatus}
+          className={cn("mt-0.5 transition-all shrink-0 active:scale-90", task.status === 'concluida' ? "text-green-500" : "text-gray-300 hover:text-green-400")}>
+          {task.status === 'concluida' ? <CheckCircle2 size={22} /> : <Circle size={22} />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <h3 className={cn("font-bold text-[16px] sm:text-[17px] leading-snug tracking-tight mb-1", task.status === 'concluida' ? "text-gray-400 line-through" : "text-text-main")}>
+            {task.title}
+          </h3>
+          {/* Inline badges row */}
+          <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+            {(((task.pomodoros ?? 0) > 0) || ((task.estimatedPomodoros ?? 0) > 0)) && (
+              <span className="text-[10px] font-bold bg-red-50 text-red-500 border border-red-100 px-1.5 py-0.5 rounded-md">
+                🍅 {task.pomodoros ?? 0}{(task.estimatedPomodoros ?? 0) > 0 ? `/${task.estimatedPomodoros}` : ''}
+              </span>
+            )}
+            {liquidTime > 0 && (
+              <span className="text-[10px] font-medium text-gray-500 bg-white/80 border border-gray-200 px-1.5 py-0.5 rounded-md">⏱ {formatDuration(liquidTime)}</span>
+            )}
+            {(task.tags ?? []).map(tag => (
+              <span key={tag} className="text-[10px] font-bold text-gray-500 bg-gray-100 border border-gray-200 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                <Tag size={9} /> {tag}
+              </span>
+            ))}
           </div>
+          {/* Checklist progress bar */}
+          {checklistPct >= 0 && (
+            <div className="mt-2.5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Checklist</span>
+                <span className="text-[10px] font-bold text-gray-500">{doneSubItems}/{totalSubItems}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-black/8 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${checklistPct}%`, background: checklistPct === 100 ? '#22c55e' : checklistPct >= 50 ? '#60a5fa' : '#fb923c' }} />
+              </div>
+            </div>
+          )}
         </div>
         <button 
           onClick={() => setIsExpanded(!isExpanded)} 
@@ -1272,9 +1381,11 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
         </button>
 
         {/* Questions Metric Pill */}
-        <div className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-transparent", pctBg, pctColor)}>
-          🎯 {correct}/{total} ({pct}%)
-        </div>
+        {total > 0 && (
+          <div className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-transparent", pctBg, pctColor)}>
+            🎯 {correct}/{total} ({pct}%)
+          </div>
+        )}
 
         {/* Warning Pill */}
         {showWarning && (

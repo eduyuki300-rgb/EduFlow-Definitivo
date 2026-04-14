@@ -166,11 +166,19 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: {
                                   )}
 
                                   <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-50">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-1">
                                       {totalItems > 0 && (
-                                        <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                          {completedItems}/{totalItems}
-                                        </span>
+                                        <div className="flex items-center gap-1.5" title={`${progressPct}% concluído`}>
+                                          <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                                            {completedItems}/{totalItems}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {task.theoryCompleted && (
+                                        <span className="text-[10px]" title="Teoria concluída">📖</span>
+                                      )}
+                                      {task.flashcardsCompleted && (
+                                        <span className="text-[10px]" title="Flashcards revisados">🧠</span>
                                       )}
                                       {task.difficulty > 0 && (
                                         <div className="flex gap-0.5">
@@ -182,7 +190,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: {
                                     </div>
                                     
                                     {task.liquidTime && task.liquidTime > 0 ? (
-                                      <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                                      <span className="text-[10px] font-bold text-green-600 flex items-center gap-1 text-right">
                                         <Clock size={10} /> {formatDuration(task.liquidTime)}
                                       </span>
                                     ) : null}
