@@ -1,58 +1,46 @@
-// Audio Singleton to prevent memory leaks and AudioContext exhaustion
-let sharedAudioContext: AudioContext | null = null;
-
-export const getAudioContext = () => {
-  if (typeof window === 'undefined') return null;
-  if (!sharedAudioContext) {
-    const AC = window.AudioContext || (window as any).webkitAudioContext;
-    if (AC) sharedAudioContext = new AC();
-  }
-  return sharedAudioContext;
-};
-
-export const playSuccessSound = (isCompletion = false) => {
+/**
+ * Plays a satisfying success sound using the Web Audio API.
+ * @param subtle - If true, plays a softer single-note tick (for subtask completions).
+ *                 If false, plays a triumphal arpeggio (for task/pomodoro completions).
+ */
+export function playSuccessSound(subtle = false): void {
   try {
-    if (isCompletion && typeof navigator !== 'undefined' && navigator.vibrate) {
-      navigator.vibrate([200, 100, 200, 100, 400]);
-    }
-    
-    const ctx = getAudioContext();
-    if (!ctx) return;
-    
-    // Resume context if suspended (common in browsers)
-    if (ctx.state === 'suspended') void ctx.resume();
+    const AudioCtx =
+      window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    if (isCompletion) {
-      // More celebratory sound for completion
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.exponentialRampToValueAtTime(1046.50, ctx.currentTime + 0.1); // C6
-      
-      gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-      
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.5);
-    } else {
-      // Standard chime
+    if (subtle) {
+      // Soft chime — single note
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 1);
-
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1);
-
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
       osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 1);
+      osc.stop(ctx.currentTime + 0.35);
+    } else {
+      // Triumphal arpeggio — C5 E5 G5
+      const notes = [523.25, 659.25, 783.99];
+      notes.forEach((freq, i) => {
+        const t = ctx.currentTime + i * 0.11;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.22, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+        osc.start(t);
+        osc.stop(t + 0.45);
+      });
     }
-  } catch (e) {
-    console.error('[Audio] Play failed:', e);
+  } catch {
+    // AudioContext not supported or blocked — fail silently
   }
-};
+}

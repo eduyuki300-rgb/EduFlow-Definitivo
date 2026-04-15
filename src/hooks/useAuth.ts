@@ -7,11 +7,11 @@ export function useAuth() {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
       setIsAuthReady(true);
     });
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
 
   return { user, isAuthReady };

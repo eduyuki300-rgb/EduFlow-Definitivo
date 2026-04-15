@@ -19,6 +19,7 @@ import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
 import { useAuth } from './hooks/useAuth';
 import { useTasks } from './hooks/useTasks';
 import { playSuccessSound } from './utils/audio';
+import { SemanaKanban } from './components/SemanaKanban';
 
 // removed local playSuccessSound, now using from utils
 
@@ -26,7 +27,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-type Tab = 'hoje' | 'semana' | 'inbox' | 'historico';
+type Tab = 'hoje' | 'semana' | 'inbox' | 'concluida';
 
 const SUBJECT_INFO: Record<string, { emoji: string, tagColor: string, cardBg: string }> = {
   'Geral': { emoji: '📚', tagColor: 'bg-gray-100 text-gray-700 border-gray-200', cardBg: 'bg-white' },
@@ -1414,8 +1415,6 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
     </div>
   );
 }
-
-import { SemanaKanban } from './components/SemanaKanban';
 
 function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
   const completedTasks = tasks.filter(t => t.status === 'concluida');

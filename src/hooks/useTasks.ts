@@ -12,28 +12,25 @@ export function useTasks(userId: string | undefined) {
       return;
     }
 
-    const q = query(collection(db, 'tasks'), where('userId', '==', userId));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasksData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Task[];
-      
-      tasksData.sort((a, b) => {
-        const timeA = a.createdAt?.toMillis?.() || 0;
-        const timeB = b.createdAt?.toMillis?.() || 0;
-        return timeB - timeA;
-      });
-      
-      setTasks(tasksData);
-    }, (error) => {
-      console.error("[useTasks] Critical: Error fetching tasks for user:", userId, error);
-      if (error.code === 'permission-denied') {
-        console.warn("[useTasks] Permission denied. Check security rules or authentication state.");
-      }
-    });
+    const q = query(
+      collection(db, 'tasks'),
+      where('userId', '==', userId)
+    );
 
-    return () => unsubscribe();
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list = snapshot.docs.map(
+          (d) => ({ id: d.id, ...d.data() } as Task)
+        );
+        setTasks(list);
+      },
+      (error) => {
+        console.error('Error fetching tasks:', error);
+      }
+    );
+
+    return unsubscribe;
   }, [userId]);
 
   return { tasks };
