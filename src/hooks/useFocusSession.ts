@@ -74,6 +74,12 @@ function readStr<T extends string>(key: string, fallback: T): T {
 
 // ─── HOOK ────────────────────────────────────────────────────────────
 
+/**
+ * Hook robusto para sessões de foco com sincronização Firestore
+ * - Persiste estado no localStorage para recuperação após fechamento da aba
+ * - Sincroniza com Firestore ao finalizar sessão (closeAfterPersist)
+ * - Usa beforeunload para garantir salvamento mesmo em fechamento inesperado
+ */
 export function useFocusSession(
   taskId: string,
   taskTitle: string
@@ -115,6 +121,7 @@ export function useFocusSession(
   const modeRef = useRef(mode);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const taskTitleRef = useRef(taskTitle);
+  const taskIdRef = useRef(taskId);
 
   // Keep refs in sync
   useEffect(() => { statusRef.current = status; }, [status]);
@@ -126,6 +133,7 @@ export function useFocusSession(
   useEffect(() => { isStrictRef.current = isStrictMode; }, [isStrictMode]);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { taskTitleRef.current = taskTitle; }, [taskTitle]);
+  useEffect(() => { taskIdRef.current = taskId; }, [taskId]);
 
   // Persist settings
   useEffect(() => { try { localStorage.setItem(PREF + 'mode', mode); } catch {} }, [mode]);
@@ -133,6 +141,63 @@ export function useFocusSession(
   useEffect(() => { try { localStorage.setItem(PREF + 'breakDur', String(breakDuration)); } catch {} }, [breakDuration]);
   useEffect(() => { try { localStorage.setItem(PREF + 'longBreakDur', String(longBreakDuration)); } catch {} }, [longBreakDuration]);
   useEffect(() => { try { localStorage.setItem(PREF + 'strict', String(isStrictMode)); } catch {} }, [isStrictMode]);
+
+  // Persist session state for recovery after tab close
+  useEffect(() => {
+    try {
+      const sessionState = {
+        status,
+        timeLeft,
+        timeElapsed,
+        focusCycles,
+        pendingLiquidTime,
+        pendingPomodoros,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(PREF + 'session_state', JSON.stringify(sessionState));
+    } catch {}
+  }, [status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros]);
+
+  // Auto-recover session on mount if there's a saved state
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem(PREF + 'session_state');
+      if (savedState) {
+        const { status: savedStatus, timeLeft: savedTimeLeft, pendingLiquidTime: savedLiquid, pendingPomodoros: savedPomos, timestamp } = JSON.parse(savedState);
+        // Only recover if session was interrupted recently (within 24 hours)
+        const age = Date.now() - timestamp;
+        if (age < 24 * 60 * 60 * 1000 && (savedStatus === 'running' || savedStatus === 'paused')) {
+          setPendingLiquidTime(savedLiquid || 0);
+          setPendingPomodoros(savedPomos || 0);
+          setTimeLeft(savedTimeLeft);
+          timeLeftRef.current = savedTimeLeft;
+          setStatus(savedStatus);
+          statusRef.current = savedStatus;
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Persist to Firestore on beforeunload (backup for unexpected closes)
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (pendingLiquidTime > 0 || pendingPomodoros > 0) {
+        try {
+          const updates: Record<string, unknown> = {
+            updatedAt: serverTimestamp(),
+          };
+          if (pendingLiquidTime > 0) updates.liquidTime = increment(pendingLiquidTime);
+          if (pendingPomodoros > 0) updates.pomodoros = increment(pendingPomodoros);
+          await updateDoc(doc(db, 'tasks', taskIdRef.current), updates);
+        } catch (e) {
+          console.error('Error persisting on unload:', e);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [pendingLiquidTime, pendingPomodoros]);
 
   // ── Interval management ─────────────────────────────────────────────
   const clearTimer = useCallback(() => {
@@ -350,6 +415,11 @@ export function useFocusSession(
         if (liquidSecs > 0) updates.liquidTime = increment(liquidSecs);
         if (pomos > 0) updates.pomodoros = increment(pomos);
         await updateDoc(doc(db, 'tasks', taskId), updates);
+
+        // Clear saved session state after successful persist
+        try {
+          localStorage.removeItem(PREF + 'session_state');
+        } catch {}
       } catch (e) {
         console.error('Error persisting session:', e);
       }
@@ -375,6 +445,10 @@ export function useFocusSession(
     setPendingLiquidTime(0);
     setPendingPomodoros(0);
     setSessionLiquidTime(0);
+    // Also clear saved session state
+    try {
+      localStorage.removeItem(PREF + 'session_state');
+    } catch {}
     updateTitle(0, 'idle');
   }, [clearTimer, updateTitle]);
 

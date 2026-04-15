@@ -10,14 +10,13 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { auth, db, loginWithGoogle, logout } from './firebase';
 import { User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { Task, Priority, Status, SubTask } from './types';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { PomodoroWidget } from './components/PomodoroWidget';
 import { FocusMode } from './components/FocusMode';
 import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
 import { useAuth } from './hooks/useAuth';
-import { useTasks } from './hooks/useTasks';
+import { useTasks, createTask, updateTask, deleteTask } from './hooks/useTasks';
 import { playSuccessSound } from './utils/audio';
 import { SemanaKanban } from './components/SemanaKanban';
 
@@ -46,7 +45,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('hoje');
   const [bgEffect, setBgEffect] = useState<BgEffect>(() => (localStorage.getItem('eduflow_bgeffect') as BgEffect) || 'bubbles');
   const { user, isAuthReady } = useAuth();
-  const { tasks } = useTasks(user?.uid);
+  const { tasks, isLoading, error } = useTasks(user?.uid);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
   const [activeFocusTask, setActiveFocusTask] = useState<Task | null>(null);
@@ -98,7 +97,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-pastel-bg overflow-hidden relative shadow-2xl sm:rounded-3xl sm:h-[90vh] sm:my-[5vh] border border-gray-200">
+    <div className="flex flex-col h-[100dvh] w-full md:max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-pastel-bg/50 overflow-hidden relative shadow-premium sm:rounded-3xl sm:h-[90vh] sm:my-[5vh] border border-white/40 glass-premium">
       <BackgroundEffects effect={bgEffect} />
       <PomodoroWidget tasks={tasks} onEnterImmersive={setActiveFocusTask} />
 
@@ -136,10 +135,10 @@ export default function App() {
               </button>
               <div className="absolute right-0 top-full mt-2 bg-white border border-gray-100 shadow-xl rounded-2xl p-2 hidden group-hover:flex flex-col gap-1 z-50 min-w-[120px] animate-in fade-in slide-in-from-top-2 duration-200">
                 <p className="text-[10px] font-bold text-gray-400 px-2 py-1 uppercase tracking-widest">Efeitos</p>
-                <button onClick={() => setBgEffect('none')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'none' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Nenhum</button>
-                <button onClick={() => setBgEffect('rain')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'rain' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Chuva</button>
-                <button onClick={() => setBgEffect('snow')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'snow' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Neve</button>
-                <button onClick={() => setBgEffect('bubbles')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'bubbles' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Bolhas</button>
+                <button onClick={() => setBgEffect('none')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'none' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Nenhum 🧊</button>
+                <button onClick={() => setBgEffect('rain')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'rain' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Chuva 🌧️</button>
+                <button onClick={() => setBgEffect('snow')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'snow' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Neve ❄️</button>
+                <button onClick={() => setBgEffect('bubbles')} className={cn("px-3 py-2 text-xs text-left rounded-xl hover:bg-gray-50 transition-colors", bgEffect === 'bubbles' && "bg-pastel-blue/20 text-pastel-blue font-bold")}>Bolhas 🫧</button>
               </div>
             </div>
             <button onClick={logout} className="p-2 text-text-muted hover:text-red-500 transition-colors rounded-full hover:bg-white shadow-sm" title="Sair">
@@ -151,33 +150,46 @@ export default function App() {
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
-            className="h-full"
-          >
-            {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
-            {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
-            {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
-            {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
-          </motion.div>
-        </AnimatePresence>
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
+            <X size={18} /> Erro ao carregar dados: {error}
+          </div>
+        )}
+        
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-3 text-text-muted animate-in fade-in duration-500">
+            <Loader2 size={40} className="animate-spin text-pastel-blue" />
+            <p className="font-bold text-sm tracking-wide">Sincronizando com a nuvem...</p>
+          </div>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="h-full"
+            >
+              {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
+              {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
+              {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} onFocus={setActiveFocusTask} />}
+              {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </main>
 
       {/* Floating Action Button */}
       <button
         onClick={openCreateModal}
-        className="absolute bottom-24 right-6 w-14 h-14 bg-text-main text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform z-30"
+        className="absolute bottom-24 right-6 w-14 h-14 bg-text-main text-white rounded-full flex items-center justify-center shadow-premium bg-gradient-to-br from-gray-800 to-black btn-premium z-30 glow-blue"
       >
         <Plus size={28} />
       </button>
 
       {/* Bottom Navigation Bar */}
-      <nav className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-2xl bg-white/90 backdrop-blur-xl border border-white/20 px-6 py-3 flex justify-between items-center z-20 rounded-3xl shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
+      <nav className="absolute bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-2xl bg-white/70 backdrop-blur-2xl border border-white/40 px-6 py-3 flex justify-between items-center z-20 rounded-3xl shadow-premium glass-premium">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -519,7 +531,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
       return;
     }
 
-    setIsSubmitting(true);
+      setIsSubmitting(true);
     const cleanedSubtasks = subtasks
       .map(st => ({
         ...st,
@@ -534,34 +546,29 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
       priority,
       status,
       subtasks: cleanedSubtasks,
-      questionsTotal,
-      questionsCorrect,
+      questionsTotal: Number(questionsTotal) || 0,
+      questionsCorrect: Number(questionsCorrect) || 0,
       theoryCompleted,
       flashcardsCompleted,
       difficulty,
       notes: notes.trim(),
-      pomodoros,
-      estimatedPomodoros,
-      tags,
-      updatedAt: serverTimestamp()
+      pomodoros: Number(pomodoros) || 0,
+      estimatedPomodoros: Number(estimatedPomodoros) || 0,
+      tags
     };
 
     try {
       if (taskToEdit) {
-        await updateDoc(doc(db, 'tasks', taskToEdit.id), taskData);
+        await updateTask(taskToEdit.id, taskData);
         playSuccessSound();
       } else {
-        await addDoc(collection(db, 'tasks'), {
-          ...taskData,
-          userId: user.uid,
-          createdAt: serverTimestamp()
-        });
+        await createTask(user.uid, taskData);
         playSuccessSound();
       }
       onClose(taskData.status);
     } catch (error) {
       console.error("Error saving task", error);
-      alert("Erro ao salvar a tarefa. Por favor, tente novamente.");
+      alert("Erro ao salvar a tarefa. Verifique sua conexão.");
     } finally {
       setIsSubmitting(false);
     }
@@ -569,13 +576,15 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
   const handleDelete = async () => {
     if (!taskToEdit || isSubmitting) return;
+    if (!confirm("Tem certeza que deseja excluir este módulo permanentemente?")) return;
+    
     setIsSubmitting(true);
     try {
-      await deleteDoc(doc(db, 'tasks', taskToEdit.id));
+      await deleteTask(taskToEdit.id);
       onClose();
     } catch (error) {
       console.error("Error deleting task", error);
-      alert("Erro ao excluir a tarefa.");
+      alert("Erro ao excluir. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -591,7 +600,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   return (
     <div className="fixed inset-0 h-[100dvh] z-50 flex flex-col sm:items-center sm:justify-center bg-black/40 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
       <div 
-        className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col sm:flex-row sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom-8 duration-300 border border-gray-100 overflow-hidden"
+        className="bg-white/90 w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col sm:flex-row sm:rounded-3xl shadow-premium animate-in slide-in-from-bottom-8 duration-300 border border-white/50 overflow-hidden glass-premium"
         onPaste={handlePaste}
       >
         
@@ -635,7 +644,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
             <button
               onClick={handleSubmit}
               disabled={!title.trim() || isSubmitting}
-              className="w-full bg-text-main text-white py-3 rounded-xl font-black text-sm disabled:opacity-50 hover:bg-gray-800 hover:shadow-md transition-all active:scale-[0.98]"
+              className="w-full bg-text-main text-white py-3 rounded-xl font-black text-sm disabled:opacity-50 hover:shadow-glow-blue transition-all btn-premium"
             >
               {isSubmitting ? (taskToEdit ? 'Salvando...' : 'Criando...') : (taskToEdit ? 'Salvar Alterações' : 'Criar Módulo')}
             </button>
@@ -1135,7 +1144,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
       return st;
     });
     try {
-      await updateDoc(doc(db, 'tasks', task.id), { subtasks: updatedSubtasks, updatedAt: serverTimestamp() });
+      await updateTask(task.id, { subtasks: updatedSubtasks });
       if (wasCompleted) {
         playSuccessSound();
       }
@@ -1147,7 +1156,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   // Toggle theory/flashcards directly from card
   const toggleMetric = async (field: 'theoryCompleted' | 'flashcardsCompleted') => {
     try {
-      await updateDoc(doc(db, 'tasks', task.id), { [field]: !task[field], updatedAt: serverTimestamp() });
+      await updateTask(task.id, { [field]: !task[field] });
     } catch (error) {
       console.error(`Error updating ${field}`, error);
     }
@@ -1157,7 +1166,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   const toggleTaskStatus = async () => {
     try {
       const newStatus = task.status === 'concluida' ? 'hoje' : 'concluida';
-      await updateDoc(doc(db, 'tasks', task.id), { status: newStatus, updatedAt: serverTimestamp() });
+      await updateTask(task.id, { status: newStatus });
       if (newStatus === 'concluida') {
         playSuccessSound();
       }
@@ -1207,7 +1216,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
   const checklistPct = totalSubItems > 0 ? Math.round((doneSubItems / totalSubItems) * 100) : -1;
 
   return (
-    <div className={cn("p-5 rounded-3xl shadow-sm border border-gray-100 flex flex-col gap-4 transition-all hover:shadow-md", subjectInfo.cardBg)}>
+    <div className={cn("p-5 glass-premium rounded-3xl border border-gray-100/50 flex flex-col gap-4 card-hover animate-in fade-in duration-300", subjectInfo.cardBg)}>
       
       {/* Header: Subject, Priority, Edit */}
       <div className="flex items-start justify-between">
@@ -1227,7 +1236,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
               <button 
                 onClick={async (e) => {
                   e.stopPropagation();
-                  try { await updateDoc(doc(db, 'tasks', task.id), { status: 'hoje', updatedAt: serverTimestamp() }); } catch (error) { console.error(error); }
+                  try { await updateTask(task.id, { status: 'hoje' }); } catch (error) { console.error(error); }
                 }}
                 className="flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-600 border border-orange-100 rounded-lg text-[10px] font-bold hover:bg-orange-100 transition-colors"
               >
@@ -1236,7 +1245,7 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
               <button 
                 onClick={async (e) => {
                   e.stopPropagation();
-                  try { await updateDoc(doc(db, 'tasks', task.id), { status: 'semana', updatedAt: serverTimestamp() }); } catch (error) { console.error(error); }
+                  try { await updateTask(task.id, { status: 'semana' }); } catch (error) { console.error(error); }
                 }}
                 className="flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg text-[10px] font-bold hover:bg-blue-100 transition-colors"
               >
@@ -1248,8 +1257,9 @@ function TaskCard({ task, onEdit, onFocus }: { task: Task, onEdit: () => void, o
               value={task.status}
               onChange={async (e) => {
                 try {
-                  await updateDoc(doc(db, 'tasks', task.id), { status: e.target.value as Status, updatedAt: serverTimestamp() });
-                  if (e.target.value === 'concluida' && task.status !== 'concluida') playSuccessSound();
+                  const newStatus = e.target.value as Status;
+                  await updateTask(task.id, { status: newStatus });
+                  if (newStatus === 'concluida' && task.status !== 'concluida') playSuccessSound();
                 } catch (error) { console.error(error); }
               }}
               className="text-[10px] font-semibold bg-gray-50 text-gray-600 border border-gray-200 hover:border-pastel-blue transition-colors rounded px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-pastel-blue cursor-pointer"
