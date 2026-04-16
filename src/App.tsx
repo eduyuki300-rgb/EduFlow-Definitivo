@@ -28,6 +28,8 @@ import { Cloud, CloudOff, CloudCheck, CloudUpload } from 'lucide-react';
 import { playSuccessSound } from './utils/audio';
 import { SemanaKanban } from './components/SemanaKanban';
 import { FocusProvider, useFocus } from './context/FocusContext';
+import { EduStuffsPanel } from './components/EduStuffs/EduStuffsPanel';
+import { useEduStuffs } from './hooks/useEduStuffs';
 import { SUBJECT_INFO, SUBJECTS } from './constants/subjects';
 import type { SubjectInfo } from './constants/subjects';
 
@@ -157,6 +159,22 @@ function AppContent({
 }: any) {
   const { activeTask, setActiveTask, session, view: focusView, setView: setFocusView } = useFocus();
   const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
+  const [isEduStuffsOpen, setIsEduStuffsOpen] = useState(() => {
+    return localStorage.getItem('eduflow_edustuffs_open') !== 'false';
+  });
+
+  // Auto-collapse sidebar during focus
+  useEffect(() => {
+    if (activeTask && focusView === 'full') {
+      setIsEduStuffsOpen(false);
+    }
+  }, [activeTask, focusView]);
+
+  const toggleEduStuffs = () => {
+    const next = !isEduStuffsOpen;
+    setIsEduStuffsOpen(next);
+    localStorage.setItem('eduflow_edustuffs_open', String(next));
+  };
 
   return (
     <div className="flex flex-col h-[100dvh] w-full md:max-w-[100%] lg:max-w-[98%] xl:max-w-[96%] mx-auto bg-transparent overflow-hidden relative shadow-2xl sm:h-screen border-x border-white/20">
@@ -330,8 +348,10 @@ function AppContent({
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
+      {/* Main Layout: Flex Row to accommodate EduStuffs Sidebar */}
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
             <X size={18} /> Erro ao carregar dados: {error}
@@ -353,14 +373,24 @@ function AppContent({
               transition={{ duration: 0.2 }}
               className="h-full"
             >
-              {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
+              {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} />}
               {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
               {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
-              {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
+              {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} />}
             </motion.div>
           </AnimatePresence>
         )}
-      </main>
+        </main>
+
+        {/* Edu Stuff's Sidebar */}
+        <div className="hidden lg:flex h-full">
+          <EduStuffsPanel 
+            isOpen={isEduStuffsOpen} 
+            onToggle={toggleEduStuffs} 
+            userId={user.uid} 
+          />
+        </div>
+      </div>
 
       {/* Floating Action Button */}
       <button
@@ -1191,9 +1221,10 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 }
 
 // Tab Components
-function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
+function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Task) => void, userName?: string }) {
   const [isGrouped, setIsGrouped] = React.useState(() => localStorage.getItem('eduflow_hoje_grouped') === 'true');
   const [search, setSearch] = React.useState('');
+  const [sortBy, setSortBy] = React.useState<'priority' | 'effort' | 'none'>('none');
 
   React.useEffect(() => {
     localStorage.setItem('eduflow_hoje_grouped', String(isGrouped));
@@ -1209,14 +1240,33 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
   const totalDonePomodoros = hojeTasks.reduce((acc, t) => acc + (t.pomodoros || 0), 0);
   
   // Group tasks by subject
+  const sortedTasks = React.useMemo(() => {
+    let result = [...hojeTasks];
+    if (sortBy === 'priority') {
+      const priorityOrder = { 'alta': 0, 'media': 1, 'baixa': 2 };
+      result.sort((a, b) => (priorityOrder[a.priority as keyof typeof priorityOrder] ?? 1) - (priorityOrder[b.priority as keyof typeof priorityOrder] ?? 1));
+    } else if (sortBy === 'effort') {
+      result.sort((a, b) => (b.estimatedPomodoros || 0) - (a.estimatedPomodoros || 0));
+    }
+    return result;
+  }, [hojeTasks, sortBy]);
+
   const groupedTasks = React.useMemo(() => {
     const groups: Record<string, Task[]> = {};
-    hojeTasks.forEach(task => {
+    sortedTasks.forEach(task => {
       if (!groups[task.subject]) groups[task.subject] = [];
       groups[task.subject].push(task);
     });
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
-  }, [hojeTasks]);
+  }, [sortedTasks]);
+
+  const heaviestSubject = groupedTasks.length > 0 ? groupedTasks[0][0] : null;
+  const greeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Bom dia";
+    if (hour < 18) return "Boa tarde";
+    return "Boa noite";
+  };
 
   if (tasks.filter(t => t.status === 'hoje').length === 0) {
     return (
@@ -1232,6 +1282,30 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
 
   return (
     <div className="flex h-full min-h-0 flex-col max-w-5xl mx-auto w-full px-1 pb-20">
+      
+      {/* Daily Briefing Header */}
+      <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
+            <Sparkles size={16} className="text-orange-500" />
+          </div>
+          <h2 className="text-2xl font-black tracking-tight text-gray-900 leading-none">
+            {greeting()}, {userName?.split(' ')[0] || 'Edu'}!
+          </h2>
+        </div>
+        <p className="text-sm text-gray-500 font-medium">
+          {totalHojeTasks > 0 ? (
+            <>
+              Você tem <span className="text-orange-600 font-bold">{totalHojeTasks} missões</span> planejadas. 
+              {heaviestSubject && (
+                <span> O foco principal hoje parece ser <span className="text-indigo-600 font-bold uppercase tracking-tight">{heaviestSubject}</span>.</span>
+              )}
+            </>
+          ) : (
+            "Seu dia está livre de missões obrigatórias. Que tal triar algo do Inbox?"
+          )}
+        </p>
+      </div>
       
       {/* Daily Summary Hero */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -1289,13 +1363,25 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
           )}
         </div>
         
-        <button 
-          onClick={() => setIsGrouped(!isGrouped)}
-          className="flex items-center gap-3 px-6 py-3 rounded-2xl border border-gray-100 bg-white text-[10px] font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm uppercase tracking-widest whitespace-nowrap"
-        >
-          {isGrouped ? <LayoutList size={14} /> : <Grid size={14} />}
-          {isGrouped ? 'Ver Tudo' : 'Agrupar por Matéria'}
-        </button>
+        <div className="flex items-center gap-2">
+          <select 
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-[10px] font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px] uppercase tracking-widest"
+          >
+            <option value="none">Ordenar</option>
+            <option value="priority">Prioridade</option>
+            <option value="effort">Esforço</option>
+          </select>
+
+          <button 
+            onClick={() => setIsGrouped(!isGrouped)}
+            className="flex items-center gap-3 px-6 py-3 rounded-2xl border border-gray-100 bg-white text-[10px] font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm uppercase tracking-widest whitespace-nowrap"
+          >
+            {isGrouped ? <LayoutList size={14} /> : <Grid size={14} />}
+            {isGrouped ? 'Ver Tudo' : 'Matérias'}
+          </button>
+        </div>
       </div>
 
       {/* Task List */}
@@ -1311,7 +1397,12 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
               <div key={subject} className="space-y-4">
                 <div className="flex items-center gap-4 px-2">
                   <div className={cn("w-1 h-3 rounded-full", info.tagColor.split(' ')[1])} />
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{subject}</h3>
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                    {subject}
+                    {items.reduce((acc, task) => acc + (task.estimatedPomodoros || 0), 0) >= 5 && (
+                      <span title="Carga horária elevada" className="animate-pulse">🔥</span>
+                    )}
+                  </h3>
                   <div className="flex-1 h-[1px] bg-gray-100" />
                   <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length}</span>
                 </div>
@@ -1325,7 +1416,7 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
           })
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {hojeTasks.map(task => (
+            {sortedTasks.map(task => (
               <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
             ))}
           </div>
@@ -1858,11 +1949,14 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
   );
 }
 
-function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
+function HistoricoTab({ tasks, onEdit, userId }: { tasks: Task[], onEdit: (task: Task) => void, userId: string }) {
+  const [view, setView] = React.useState<'estudos' | 'vida'>('estudos');
   const [search, setSearch] = React.useState('');
   const [subjectFilter, setSubjectFilter] = React.useState('Todas');
   const [periodFilter, setPeriodFilter] = React.useState('all'); // all, today, week, month
   const [sortBy, setSortBy] = React.useState<'newest' | 'oldest' | 'effort'>('newest');
+
+  const { stuffs } = useEduStuffs(userId);
 
   const completedTasks = tasks.filter(t => t.status === 'concluida');
 
@@ -1942,74 +2036,137 @@ function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) =
   return (
     <div className="flex h-full min-h-0 flex-col max-w-5xl mx-auto w-full px-1 pb-20">
       
-      {/* Header & Filters */}
-      <div className="mb-8 space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
-            <input
-              type="text"
-              placeholder="Buscar no histórico..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm"
-            />
-          </div>
-          <div className="flex gap-2 shrink-0 overflow-x-auto pb-1 md:pb-0">
-            <select 
-              value={subjectFilter}
-              onChange={e => setSubjectFilter(e.target.value)}
-              className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
-            >
-              <option value="Todas">Toda as Matérias</option>
-              {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select 
-              value={periodFilter}
-              onChange={e => setPeriodFilter(e.target.value)}
-              className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[100px]"
-            >
-              <option value="all">Todo Período</option>
-              <option value="today">Apenas Hoje</option>
-              <option value="week">Últimos 7 dias</option>
-              <option value="month">Últimos 30 dias</option>
-            </select>
-            <select 
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as any)}
-              className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
-            >
-              <option value="newest">Mais Recentes</option>
-              <option value="oldest">Mais Antigas</option>
-              <option value="effort">Maior Esforço</option>
-            </select>
-          </div>
-        </div>
+      {/* View Toggle */}
+      <div className="flex items-center gap-1 p-1 bg-white/50 backdrop-blur-md border border-white/80 rounded-2xl w-fit mb-8 shadow-sm">
+        <button
+          onClick={() => setView('estudos')}
+          className={cn(
+            "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            view === 'estudos' ? "bg-orange-500 text-white shadow-lg shadow-orange-200" : "text-gray-400 hover:text-gray-900"
+          )}
+        >
+          🎓 Missões (Estudos)
+        </button>
+        <button
+          onClick={() => setView('vida')}
+          className={cn(
+            "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+            view === 'vida' ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "text-gray-400 hover:text-gray-900"
+          )}
+        >
+          🌿 Stuff (Vida)
+        </button>
       </div>
 
-      {/* Grouped List */}
-      <div className="space-y-12">
-        {groupedTasks.length === 0 ? (
-          <div className="text-center py-20 opacity-30">
-            <p className="text-sm font-bold uppercase tracking-widest">Nenhum registro encontrado para estes filtros</p>
-          </div>
-        ) : (
-          groupedTasks.map(([label, items]) => (
-            <div key={label} className="space-y-6">
-              <div className="flex items-center gap-4 px-2">
-                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
-                <div className="flex-1 h-[1px] bg-gray-100" />
-                <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length} módulos</span>
+      {view === 'estudos' ? (
+        <>
+          {/* Header & Filters */}
+          <div className="mb-8 space-y-4">
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+                <input
+                  type="text"
+                  placeholder="Buscar no histórico..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm"
+                />
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {items.map(task => (
-                  <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-                ))}
+              <div className="flex gap-2 shrink-0 overflow-x-auto pb-1 md:pb-0">
+                <select 
+                  value={subjectFilter}
+                  onChange={e => setSubjectFilter(e.target.value)}
+                  className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
+                >
+                  <option value="Todas">Toda as Matérias</option>
+                  {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                <select 
+                  value={periodFilter}
+                  onChange={e => setPeriodFilter(e.target.value)}
+                  className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[100px]"
+                >
+                  <option value="all">Todo Período</option>
+                  <option value="today">Apenas Hoje</option>
+                  <option value="week">Últimos 7 dias</option>
+                  <option value="month">Últimos 30 dias</option>
+                </select>
+                <select 
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as any)}
+                  className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
+                >
+                  <option value="newest">Mais Recentes</option>
+                  <option value="oldest">Mais Antigas</option>
+                  <option value="effort">Maior Esforço</option>
+                </select>
               </div>
             </div>
-          ))
-        )}
-      </div>
+          </div>
+          
+          {/* Grouped List */}
+          <div className="space-y-12">
+            {groupedTasks.length === 0 ? (
+              <div className="text-center py-20 opacity-30">
+                <p className="text-sm font-bold uppercase tracking-widest">Nenhum registro encontrado para estes filtros</p>
+              </div>
+            ) : (
+              groupedTasks.map(([label, items]) => (
+                <div key={label} className="space-y-6">
+                  <div className="flex items-center gap-4 px-2">
+                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
+                    <div className="flex-1 h-[1px] bg-gray-100" />
+                    <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length} módulos</span>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {items.map(task => (
+                      <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Histórico de Vida & Hábitos</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stuffs.filter(s => s.completed || (s.type === 'habit' && s.streak > 0)).map((stuff) => (
+              <div key={stuff.id} className="p-5 glass-card rounded-3xl border-white/40 flex items-start gap-4 group">
+                <div className={cn(
+                  "w-10 h-10 rounded-2xl flex items-center justify-center shadow-sm",
+                  stuff.type === 'habit' ? "bg-emerald-50 text-emerald-500" : "bg-orange-50 text-orange-500"
+                )}>
+                  {stuff.type === 'habit' ? <Sparkles size={20} /> : <Check size={20} />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-black text-gray-900 uppercase tracking-tight mb-1">{stuff.title}</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {stuff.type === 'habit' ? `${stuff.streak} dias de sequência` : 'Tarefa Concluída'}
+                  </p>
+                  {stuff.lastCompletedAt && (
+                    <p className="text-[9px] text-gray-300 mt-2">
+                      Última atividade: {stuff.lastCompletedAt.toDate().toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {stuffs.filter(s => s.completed || (s.type === 'habit' && s.streak > 0)).length === 0 && (
+            <div className="py-20 flex flex-col items-center opacity-30">
+              <History size={48} className="mb-4" />
+              <p className="text-sm font-bold uppercase tracking-widest">Nada no histórico pessoal ainda</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
