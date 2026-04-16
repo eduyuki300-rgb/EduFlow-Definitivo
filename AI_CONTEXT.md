@@ -1,58 +1,26 @@
-# 🧠 Contexto do Projeto: StudyFlow
+# IA Context - EduFlow Project
 
-Este documento serve como o **System Prompt / Contexto Principal** para qualquer Inteligência Artificial (Claude, Qwen, Cursor, Antigravity, ChatGPT, etc.) que for atuar no repositório do **StudyFlow**. 
+Este documento serve como guia para que outras IAs (Claude, ChatGPT, etc.) entendam o projeto EduFlow rapidamente.
 
-Ao ler este arquivo, a IA deve assumir o papel de um Engenheiro de Software Sênior e Product Designer especializado em interfaces "aesthetic", produtividade e integração com Firebase.
+## 🏗 Arquitetura
+- **Core**: React + TypeScript + Vite.
+- **Backend**: Firebase Firestore (Banco de dados) & Firebase Auth (Autenticação).
+- **Estilo**: Vanilla CSS (layout principal) + Tailwind CSS (componentes e utilitários).
+- **Gerenciamento de Estado**: Hooks customizados e Context API.
 
----
+## 🔑 Componentes Principais
+1. **`useFocusSession.ts`**: O coração do Pomodoro. Gerencia o timer, transições entre modo Pomodoro e Cronômetro, sincronização entre abas e notificações.
+2. **`useTasks.ts`**: Motor de sincronização de tarefas. Implementa uma estratégia de "Sync Buffer" para evitar excesso de escritas no Firebase.
+3. **`App.tsx`**: Contém o `TaskModal` (editor) e a lógica principal da dashboard.
+4. **`FocusMode.tsx`**: Interface imersiva de foco.
 
-## 🎯 Visão Geral do Produto
-O **StudyFlow** é um aplicativo pessoal de produtividade e organização de estudos de alto rendimento, projetado especificamente para a preparação do **ENEM 2026**. 
-O objetivo central é resolver dores de organização semanal, fornecendo visão clara de tarefas, registro de métricas de estudo (questões, acertos, tempo líquido vs bruto), e acompanhamento de metas baseadas em OKRs. O app também prevê uma forte integração com agentes de IA (Gemini Pro) para atuar como tutor e planejador estratégico.
+## 📜 Regras de Negócio Importantes
+- **Sincronização**: As tarefas são salvas no Firestore de forma otimizada. Não remova o `syncStatus`.
+- **Modo Estrito**: Se ativado no Pomodoro, as pausas começam automaticamente após o foco.
+- **Expansão Global**: Existe um evento customizado `eduflow-global-expand` que abre/fecha todos os `TaskCard` ao mesmo tempo.
 
-## 🛠️ Stack Tecnológico
-- **Frontend:** React 19, TypeScript, Vite.
-- **Estilização:** Tailwind CSS (foco em utilitários, sem arquivos CSS externos além do global).
-- **Animações & Ícones:** `motion` (Framer Motion) para transições suaves e `lucide-react` para ícones.
-- **Backend/BaaS:** Firebase (Authentication com Google, Firestore para banco de dados em tempo real).
-- **IA:** `@google/genai` (SDK do Gemini).
-
-## 🎨 Diretrizes de Design (Aesthetic & UI/UX)
-O design é uma prioridade absoluta. O usuário exige uma interface que transmita calma, organização e estrutura ("aesthetic").
-- **Cores:** Tons pastel, fundos translúcidos (`bg-white/50`, `bg-white/80`), textos em tons de cinza escuro (`text-gray-700`, `text-gray-500`) para reduzir o cansaço visual.
-- **Formas:** Bordas bem arredondadas (`rounded-2xl`, `rounded-3xl`, `rounded-full`).
-- **Sombras e Profundidade:** Sombras muito suaves (`shadow-sm`, `shadow-md`), efeitos de glassmorphism (desfoque de fundo, bordas brancas semi-transparentes).
-- **Feedback Visual e Sonoro:** Animações de hover, transições de estado suaves, e sons satisfatórios ao concluir tarefas.
-- **Responsividade:** O layout deve funcionar perfeitamente tanto em Desktop quanto em Mobile.
-
-## ⚙️ Estrutura de Dados (Firestore)
-A entidade principal é a `Task` (Tarefa), que possui a seguinte estrutura (ver `src/types.ts`):
-- `status`: 'inbox' | 'hoje' | 'semana' | 'concluida'
-- `subject`: Matéria (Ex: Matemática, Física, Geral)
-- `priority`: 'baixa' | 'media' | 'alta'
-- `subtasks`: Array de checklists.
-- `metrics`: `questionsTotal`, `questionsCorrect`, `theoryCompleted`, `flashcardsCompleted`.
-- `time`: `pomodoros`, `liquidTime` (tempo de foco), `totalTime` (foco + pausas).
-- `difficulty`: 1 a 5 estrelas.
-- `tags`: Array de strings para categorização estratégica.
-
-## 🧩 Módulos e Funcionalidades Atuais
-1. **Inbox:** Captura rápida de ideias e tarefas sem data.
-2. **Semana (Smart Table):** Uma tabela inteligente com filtros (por status e matéria), barra de busca, dropdowns para mudança rápida de status e visualização rica de dados (progresso, tempo, tags). *Nota: Substituiu um Kanban antigo para melhor visualização de dados.*
-3. **Hoje:** Foco do dia. Exibe as tarefas em andamento.
-4. **Histórico:** Tarefas concluídas e métricas gerais.
-5. **Pomodoro Widget:** Um cronômetro flutuante e minimizável. Possui modos de Foco, Pausa e Descanso. **Regra de Negócio Importante:** Ao clicar em "Salvar", o sistema *deve* exibir uma confirmação ("Deseja salvar o tempo registrado?") antes de gravar no Firestore, permitindo o descarte do tempo.
-
-## 🛑 Regras Estritas para Agentes de IA
-1. **NÃO REMOVA ABAS:** Nunca remova as abas existentes (Inbox, Hoje, Semana, Histórico). Apenas melhore-as.
-2. **Sincronização em Tempo Real:** Todas as ações de CRUD devem ser refletidas no Firestore usando `onSnapshot` para leitura e `updateDoc`/`addDoc` para escrita. Não use estados locais que não sincronizem com o banco.
-3. **Mantenha o Padrão Visual:** Ao criar novos componentes, siga estritamente o padrão de cores pastel, bordas arredondadas e ícones do Lucide.
-4. **Edição de Cartões:** A janela de edição de tarefas (`TaskModal`) é um ponto crítico. Ela deve ser robusta, permitindo editar todos os metadados (tags, tempo, questões, subtarefas) de forma intuitiva.
-5. **Código Limpo e Modular:** Mantenha o código organizado. Se um arquivo (como `App.tsx`) ficar muito grande, proponha a componentização de forma segura.
-6. **Integração com IA:** O app exportará dados para o Gemini e importará planejamentos. Mantenha a estrutura de dados previsível para facilitar a geração de prompts estruturados.
-
-## 🚀 Próximos Passos (Roadmap do Usuário)
-- Refinamento contínuo da janela de edição de tarefas.
-- Implementação de sistema de OKRs e metas sugeridas pela IA.
-- Geração de relatórios de exportação para o Gemini analisar o rendimento.
-- Melhorias nas animações de fundo (chuva, neve) e gamificação leve.
+## 🛠 Ferramentas Recomendadas para IA
+Para dar todo o contexto deste repositório para uma IA de uma vez, use o **Repomix**:
+1. No terminal: `npx repomix`
+2. Isso gerará um arquivo `repomix-output.txt`.
+3. Anexe esse arquivo ao chat de qualquer IA para que ela "leia" todo o seu projeto instantaneamente.
