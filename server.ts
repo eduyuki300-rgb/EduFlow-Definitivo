@@ -71,12 +71,17 @@ async function startServer() {
         }
       });
 
+      // Ensure we handle the text response correctly based on the latest SDK documentation
       const text = response.text;
-      if (!text) throw new Error("Resposta vazia da IA");
+      
+      if (!text) {
+        console.error("Gemini API returned an empty response.");
+        return res.status(500).json({ error: "A IA retornou uma resposta vazia. Tente novamente." });
+      }
       
       res.json({ text });
     } catch (error: any) {
-      console.error("Gemini API Error:", error);
+      console.error("Gemini API Error details:", error);
       
       // Handle specific API key errors
       if (error.message && error.message.includes("API key not valid")) {
@@ -85,7 +90,8 @@ async function startServer() {
         });
       }
       
-      res.status(500).json({ error: error.message || "Failed to process AI request" });
+      const errorMessage = error.message || "Erro desconhecido na API do Gemini";
+      res.status(500).json({ error: errorMessage });
     }
   });
 

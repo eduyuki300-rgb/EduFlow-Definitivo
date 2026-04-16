@@ -1192,9 +1192,33 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
 // Tab Components
 function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
-  const hojeTasks = tasks.filter(t => t.status === 'hoje');
+  const [isGrouped, setIsGrouped] = React.useState(() => localStorage.getItem('eduflow_hoje_grouped') === 'true');
+  const [search, setSearch] = React.useState('');
 
-  if (hojeTasks.length === 0) {
+  React.useEffect(() => {
+    localStorage.setItem('eduflow_hoje_grouped', String(isGrouped));
+  }, [isGrouped]);
+
+  const hojeTasks = tasks.filter(t => 
+    t.status === 'hoje' && 
+    (!search || t.title.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const totalHojeTasks = hojeTasks.length;
+  const totalEstimated = hojeTasks.reduce((acc, t) => acc + (t.estimatedPomodoros || 0), 0);
+  const totalDonePomodoros = hojeTasks.reduce((acc, t) => acc + (t.pomodoros || 0), 0);
+  
+  // Group tasks by subject
+  const groupedTasks = React.useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    hojeTasks.forEach(task => {
+      if (!groups[task.subject]) groups[task.subject] = [];
+      groups[task.subject].push(task);
+    });
+    return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
+  }, [hojeTasks]);
+
+  if (tasks.filter(t => t.status === 'hoje').length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center py-24">
         <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
@@ -1207,10 +1231,106 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto">
-      {hojeTasks.map(task => (
-        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-      ))}
+    <div className="flex h-full min-h-0 flex-col max-w-5xl mx-auto w-full px-1 pb-20">
+      
+      {/* Daily Summary Hero */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 shadow-inner">
+            <Target size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Foco do Dia</p>
+            <p className="text-2xl font-black text-gray-900 leading-tight">
+              {totalHojeTasks} <span className="text-sm font-bold text-gray-400">módulos</span>
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 shadow-inner">
+            <Clock size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tempo Est.</p>
+            <p className="text-2xl font-black text-gray-900 leading-tight">
+              {totalEstimated * 25} <span className="text-sm font-bold text-gray-400">min</span>
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 shadow-inner">
+            <CheckCircle2 size={24} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Progresso</p>
+            <p className="text-2xl font-black text-gray-900 leading-tight">
+              {totalDonePomodoros} / {totalEstimated} <span className="text-sm font-bold text-gray-400">toms</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Control Bar */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 mb-8">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+          <input
+            type="text"
+            placeholder="Buscar nas missões de hoje..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm transition-all"
+          />
+          {search && (
+            <button onClick={() => setSearch('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-600 transition-colors">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        
+        <button 
+          onClick={() => setIsGrouped(!isGrouped)}
+          className="flex items-center gap-3 px-6 py-3 rounded-2xl border border-gray-100 bg-white text-[10px] font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm uppercase tracking-widest whitespace-nowrap"
+        >
+          {isGrouped ? <LayoutList size={14} /> : <Grid size={14} />}
+          {isGrouped ? 'Ver Tudo' : 'Agrupar por Matéria'}
+        </button>
+      </div>
+
+      {/* Task List */}
+      <div className="space-y-8">
+        {totalHojeTasks === 0 ? (
+          <div className="text-center py-12 opacity-40">
+            <p className="text-sm font-bold uppercase tracking-widest">Nenhuma missão encontrada</p>
+          </div>
+        ) : isGrouped ? (
+          groupedTasks.map(([subject, items]) => {
+            const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
+            return (
+              <div key={subject} className="space-y-4">
+                <div className="flex items-center gap-4 px-2">
+                  <div className={cn("w-1 h-3 rounded-full", info.tagColor.split(' ')[1])} />
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{subject}</h3>
+                  <div className="flex-1 h-[1px] bg-gray-100" />
+                  <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length}</span>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {items.map(task => (
+                    <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {hojeTasks.map(task => (
+              <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1739,7 +1859,75 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
 }
 
 function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
+  const [search, setSearch] = React.useState('');
+  const [subjectFilter, setSubjectFilter] = React.useState('Todas');
+  const [periodFilter, setPeriodFilter] = React.useState('all'); // all, today, week, month
+  const [sortBy, setSortBy] = React.useState<'newest' | 'oldest' | 'effort'>('newest');
+
   const completedTasks = tasks.filter(t => t.status === 'concluida');
+
+  const filteredTasks = React.useMemo(() => {
+    let result = completedTasks.filter(t => {
+      const matchesSearch = !search || t.title.toLowerCase().includes(search.toLowerCase());
+      const matchesSubject = subjectFilter === 'Todas' || t.subject === subjectFilter;
+      
+      let matchesPeriod = true;
+      if (periodFilter !== 'all') {
+        const date = t.updatedAt?.toDate() || t.createdAt?.toDate() || new Date();
+        const now = new Date();
+        if (periodFilter === 'today') {
+          matchesPeriod = date.toDateString() === now.toDateString();
+        } else if (periodFilter === 'week') {
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          matchesPeriod = date >= sevenDaysAgo;
+        } else if (periodFilter === 'month') {
+          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          matchesPeriod = date >= thirtyDaysAgo;
+        }
+      }
+
+      return matchesSearch && matchesSubject && matchesPeriod;
+    });
+
+    result.sort((a, b) => {
+      const aTime = a.updatedAt?.toMillis() || a.createdAt?.toMillis() || 0;
+      const bTime = b.updatedAt?.toMillis() || b.createdAt?.toMillis() || 0;
+      
+      if (sortBy === 'newest') return bTime - aTime;
+      if (sortBy === 'oldest') return aTime - bTime;
+      if (sortBy === 'effort') return (b.liquidTime || 0) - (a.liquidTime || 0);
+      return 0;
+    });
+
+    return result;
+  }, [completedTasks, search, subjectFilter, periodFilter, sortBy]);
+
+  // Group by relative date
+  const groupedTasks = React.useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toDateString();
+
+    filteredTasks.forEach(task => {
+      const date = task.updatedAt?.toDate() || task.createdAt?.toDate() || new Date();
+      let label = "";
+      const dateStr = date.toDateString();
+      
+      if (dateStr === todayStr) label = "HOJE";
+      else if (dateStr === yesterdayStr) label = "ONTEM";
+      else {
+        label = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(date).toUpperCase();
+      }
+
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(task);
+    });
+
+    return Object.entries(groups);
+  }, [filteredTasks]);
 
   if (completedTasks.length === 0) {
     return (
@@ -1752,10 +1940,76 @@ function HistoricoTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) =
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 max-w-5xl mx-auto pb-20">
-      {completedTasks.map(task => (
-        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-      ))}
+    <div className="flex h-full min-h-0 flex-col max-w-5xl mx-auto w-full px-1 pb-20">
+      
+      {/* Header & Filters */}
+      <div className="mb-8 space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+            <input
+              type="text"
+              placeholder="Buscar no histórico..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm"
+            />
+          </div>
+          <div className="flex gap-2 shrink-0 overflow-x-auto pb-1 md:pb-0">
+            <select 
+              value={subjectFilter}
+              onChange={e => setSubjectFilter(e.target.value)}
+              className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
+            >
+              <option value="Todas">Toda as Matérias</option>
+              {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select 
+              value={periodFilter}
+              onChange={e => setPeriodFilter(e.target.value)}
+              className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[100px]"
+            >
+              <option value="all">Todo Período</option>
+              <option value="today">Apenas Hoje</option>
+              <option value="week">Últimos 7 dias</option>
+              <option value="month">Últimos 30 dias</option>
+            </select>
+            <select 
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as any)}
+              className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
+            >
+              <option value="newest">Mais Recentes</option>
+              <option value="oldest">Mais Antigas</option>
+              <option value="effort">Maior Esforço</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Grouped List */}
+      <div className="space-y-12">
+        {groupedTasks.length === 0 ? (
+          <div className="text-center py-20 opacity-30">
+            <p className="text-sm font-bold uppercase tracking-widest">Nenhum registro encontrado para estes filtros</p>
+          </div>
+        ) : (
+          groupedTasks.map(([label, items]) => (
+            <div key={label} className="space-y-6">
+              <div className="flex items-center gap-4 px-2">
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
+                <div className="flex-1 h-[1px] bg-gray-100" />
+                <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length} módulos</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {items.map(task => (
+                  <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
