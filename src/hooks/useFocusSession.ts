@@ -84,14 +84,40 @@ export function useFocusSession(
   const [longBreakDuration, setLongBreakDurationState] = useState(() => readInt('longBreakDur', 900));
   const [isStrictMode, setIsStrictModeState] = useState(() => readBool('strict'));
 
-  // ── Timer state ─────────────────────────────────────────────────────
-  const [status, setStatus] = useState<TimerStatus>('idle');
-  const [timeLeft, setTimeLeft] = useState(() => readInt('focusDur', 1500));
-  const [timeElapsed, setTimeElapsed] = useState(0);
-  const [focusCycles, setFocusCycles] = useState(0);
+  // ── Timer state (Lazy Initializer for Persistence & Drift) ─────────
+  const [initialState] = useState(() => {
+    const saved = localStorage.getItem(PREF + 'session_state');
+    if (!saved) return null;
+    try {
+      const s = JSON.parse(saved);
+      const AGE_LIMIT = 24 * 60 * 60 * 1000; // 24h
+      if (Date.now() - s.timestamp > AGE_LIMIT) return null;
+
+      const driftSec = Math.floor((Date.now() - s.timestamp) / 1000);
+      let tLeft = s.timeLeft;
+      let tElapsed = s.timeElapsed;
+      let tStatus = s.status;
+
+      if (s.status === 'running') {
+        tLeft = Math.max(0, s.timeLeft - driftSec);
+        tElapsed = s.timeElapsed + driftSec;
+        if (tLeft === 0) tStatus = 'finished';
+      } else if (s.status === 'break') {
+        tLeft = Math.max(0, s.timeLeft - driftSec);
+        if (tLeft === 0) tStatus = 'idle';
+      }
+
+      return { ...s, status: tStatus, timeLeft: tLeft, timeElapsed: tElapsed };
+    } catch { return null; }
+  });
+
+  const [status, setStatus] = useState<TimerStatus>(initialState?.status ?? 'idle');
+  const [timeLeft, setTimeLeft] = useState(initialState?.timeLeft ?? focusDuration);
+  const [timeElapsed, setTimeElapsed] = useState(initialState?.timeElapsed ?? 0);
+  const [focusCycles, setFocusCycles] = useState(initialState?.focusCycles ?? 0);
   const [sessionLiquidTime, setSessionLiquidTime] = useState(0);
-  const [pendingLiquidTime, setPendingLiquidTime] = useState(0);
-  const [pendingPomodoros, setPendingPomodoros] = useState(0);
+  const [pendingLiquidTime, setPendingLiquidTime] = useState(initialState?.pendingLiquidTime ?? 0);
+  const [pendingPomodoros, setPendingPomodoros] = useState(initialState?.pendingPomodoros ?? 0);
 
   // ── Refs ────────────────────────────────────────────────────────────
   const statusRef = useRef(status);
@@ -135,6 +161,12 @@ export function useFocusSession(
       localStorage.setItem(PREF + 'session_state', JSON.stringify(state));
     } catch {}
   }, [status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros]);
+
+  // Auto-start logic with Drift Compensation on Initial Load
+  useEffect(() => {
+    if (status === 'running') startTick('focus');
+    else if (status === 'break') startTick('break');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-start logic for Strict Mode
   useEffect(() => {
@@ -190,9 +222,9 @@ export function useFocusSession(
               const newCycles = focusCyclesRef.current + 1;
               setFocusCycles(newCycles);
               const dur = focusDurRef.current;
-              setPendingLiquidTime(p => p + dur);
+              // Sincronizar ciclo completo imediatamente com o motor global
+              syncFocusSession(taskId, dur, 1);
               setSessionLiquidTime(s => s + dur);
-              setPendingPomodoros(p => p + 1);
               setStatus('finished');
               updateTitle(0, 'done');
               return 0;
@@ -319,13 +351,13 @@ export function useFocusSession(
     clearTimer();
     const elapsed = modeRef.current === 'pomodoro' ? (focusDurRef.current - timeLeftRef.current) : timeElapsedRef.current;
     setFocusCycles(c => c + 1);
-    setPendingLiquidTime(p => p + elapsed);
+    // Sincronizar progresso parcial/pulado imediatamente
+    syncFocusSession(taskId, elapsed, 1);
     setSessionLiquidTime(s => s + elapsed);
-    setPendingPomodoros(p => p + 1);
     setStatus('finished');
     setTimeLeft(0);
     updateTitle(0, 'done');
-  }, [clearTimer, updateTitle]);
+  }, [clearTimer, updateTitle, taskId]);
 
   const startBreak = useCallback(() => {
     const isLong = focusCyclesRef.current > 0 && focusCyclesRef.current % 4 === 0;
@@ -341,8 +373,17 @@ export function useFocusSession(
 
   const closeAfterPersist = useCallback(async () => {
     clearTimer();
-    const extra = statusRef.current === 'running' ? (focusDurRef.current - timeLeftRef.current) : 0;
+    // Cálculo robusto para qualquer modo (Pomodoro ou Cronômetro)
+    let extra = 0;
+    if (statusRef.current === 'running') {
+      extra = modeRef.current === 'pomodoro' 
+        ? (focusDurRef.current - timeLeftRef.current) 
+        : timeElapsedRef.current;
+    }
+    
+    // Enviar qualquer tempo pendente + tempo da sessão atual não salva
     syncFocusSession(taskId, pendingLiquidTime + extra, pendingPomodoros);
+    
     setPendingLiquidTime(0);
     setPendingPomodoros(0);
   }, [clearTimer, taskId, pendingLiquidTime, pendingPomodoros]);

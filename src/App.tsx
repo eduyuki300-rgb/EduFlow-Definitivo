@@ -28,6 +28,8 @@ import { Cloud, CloudOff, CloudCheck, CloudUpload } from 'lucide-react';
 import { playSuccessSound } from './utils/audio';
 import { SemanaKanban } from './components/SemanaKanban';
 import { FocusProvider, useFocus } from './context/FocusContext';
+import { SUBJECT_INFO, SUBJECTS } from './constants/subjects';
+import type { SubjectInfo } from './constants/subjects';
 
 // removed local playSuccessSound, now using from utils
 
@@ -37,118 +39,7 @@ function cn(...inputs: ClassValue[]) {
 
 // Removed local Tab type, now defined via TABS
 
-interface SubjectInfo {
-  emoji: string;
-  cardBg: string;
-  tagColor: string;
-  primary: string;
-  secondary: string;
-  gradient: string;
-  shadowColor: string;
-}
-
-const SUBJECT_INFO: Record<string, SubjectInfo> = {
-  'Matemática': { 
-    emoji: '📐', 
-    cardBg: 'bg-blue-50/70', 
-    tagColor: 'bg-blue-100 text-blue-700 border-blue-200',
-    primary: '#3b82f6',
-    secondary: '#1d4ed8',
-    gradient: 'from-blue-100/50 to-indigo-100/50',
-    shadowColor: 'rgba(59, 130, 246, 0.2)'
-  },
-  'Português': { 
-    emoji: '📚', 
-    cardBg: 'bg-amber-50/70', 
-    tagColor: 'bg-amber-100 text-amber-700 border-amber-200',
-    primary: '#f59e0b',
-    secondary: '#b45309',
-    gradient: 'from-amber-100/50 to-orange-100/50',
-    shadowColor: 'rgba(245, 158, 11, 0.2)'
-  },
-  'História': { 
-    emoji: '📜', 
-    cardBg: 'bg-orange-50/70', 
-    tagColor: 'bg-orange-100 text-orange-700 border-orange-200',
-    primary: '#f97316',
-    secondary: '#c2410c',
-    gradient: 'from-orange-100/50 to-red-100/50',
-    shadowColor: 'rgba(249, 115, 22, 0.2)'
-  },
-  'Geografia': { 
-    emoji: '🌍', 
-    cardBg: 'bg-emerald-50/70', 
-    tagColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    primary: '#10b981',
-    secondary: '#047857',
-    gradient: 'from-emerald-100/50 to-teal-100/50',
-    shadowColor: 'rgba(16, 185, 129, 0.2)'
-  },
-  'Biologia': { 
-    emoji: '🧬', 
-    cardBg: 'bg-green-50/70', 
-    tagColor: 'bg-green-100 text-green-700 border-green-200',
-    primary: '#22c55e',
-    secondary: '#15803d',
-    gradient: 'from-green-100/50 to-emerald-100/50',
-    shadowColor: 'rgba(34, 197, 94, 0.2)'
-  },
-  'Física': { 
-    emoji: '⚛️', 
-    cardBg: 'bg-cyan-50/70', 
-    tagColor: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    primary: '#06b6d4',
-    secondary: '#0e7490',
-    gradient: 'from-cyan-100/50 to-blue-100/50',
-    shadowColor: 'rgba(6, 182, 212, 0.2)'
-  },
-  'Química': { 
-    emoji: '🧪', 
-    cardBg: 'bg-purple-50/70', 
-    tagColor: 'bg-purple-100 text-purple-700 border-purple-200',
-    primary: '#8b5cf6',
-    secondary: '#6d28d9',
-    gradient: 'from-purple-100/50 to-indigo-100/50',
-    shadowColor: 'rgba(139, 92, 246, 0.2)'
-  },
-  'Filosofia': { 
-    emoji: '💭', 
-    cardBg: 'bg-slate-50/70', 
-    tagColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    primary: '#64748b',
-    secondary: '#334155',
-    gradient: 'from-slate-100/50 to-gray-100/50',
-    shadowColor: 'rgba(100, 116, 139, 0.2)'
-  },
-  'Sociologia': { 
-    emoji: '👥', 
-    cardBg: 'bg-zinc-50/70', 
-    tagColor: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-    primary: '#71717a',
-    secondary: '#3f3f46',
-    gradient: 'from-zinc-100/50 to-neutral-100/50',
-    shadowColor: 'rgba(113, 113, 122, 0.2)'
-  },
-  'Redação': { 
-    emoji: '✍️', 
-    cardBg: 'bg-rose-50/70', 
-    tagColor: 'bg-rose-100 text-rose-700 border-rose-200',
-    primary: '#f43f5e',
-    secondary: '#be123c',
-    gradient: 'from-rose-100/50 to-pink-100/50',
-    shadowColor: 'rgba(244, 63, 94, 0.2)'
-  },
-  'Geral': { 
-    emoji: '📌', 
-    cardBg: 'bg-gray-50/70', 
-    tagColor: 'bg-gray-100 text-gray-700 border-gray-200',
-    primary: '#6b7280',
-    secondary: '#374151',
-    gradient: 'from-gray-100/50 to-slate-100/50',
-    shadowColor: 'rgba(107, 114, 128, 0.1)'
-  }
-};
-const SUBJECTS = Object.keys(SUBJECT_INFO);
+// SUBJECT_INFO moved to src/constants/subjects.ts
 
 const TABS = [
   { id: 'hoje', label: 'Hoje', icon: CalendarDays, color: 'text-pastel-peach' },
@@ -434,7 +325,7 @@ function AppContent({
               className="h-full"
             >
               {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
-              {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
+              {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
               {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
               {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
             </motion.div>

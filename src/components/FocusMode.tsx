@@ -10,6 +10,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
 import { playSuccessSound } from '../utils/audio';
+import { SUBJECT_INFO } from '../constants/subjects';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -42,18 +43,7 @@ const ACCENT_COLORS = [
   { id: 'cyan', label: 'Calma', hex: '#22d3ee' },
 ];
 
-const SUBJECT_INFO: Record<string, { emoji: string; color: string }> = {
-  'Geral': { emoji: '📌', color: '#6b7280' },
-  'Biologia': { emoji: '🧬', color: '#22c55e' },
-  'Física': { emoji: '⚛️', color: '#06b6d4' },
-  'Química': { emoji: '🧪', color: '#8b5cf6' },
-  'Matemática': { emoji: '📐', color: '#3b82f6' },
-  'Linguagens': { emoji: '🗣️', color: '#eab308' },
-  'Humanas': { emoji: '🌍', color: '#f97316' },
-  'Redação': { emoji: '✍️', color: '#f43f5e' },
-  'História': { emoji: '📜', color: '#f97316' },
-  'Português': { emoji: '📚', color: '#f59e0b' },
-};
+// SUBJECT_INFO imported from src/constants/subjects.ts
 
 function seededRandom(i: number, salt: number) {
   const x = Math.sin(i * 83492791 + salt * 2654435761) * 10000;
@@ -246,7 +236,7 @@ function FocusModeFull() {
   const { 
     mode, setMode, status, focusDuration, setFocusDuration, breakDuration, setBreakDuration,
     longBreakDuration, setLongBreakDuration, focusCycles, isStrictMode, setIsStrictMode,
-    timeLeft, timeElapsed, toggleTimer, resetTimer, skipToComplete, discardSessionTime, startBreak 
+    timeLeft, timeElapsed, toggleTimer: sessionToggleTimer, resetTimer, skipToComplete, discardSessionTime, startBreak 
   } = session;
 
   const [showSettings, setShowSettings] = useState(false);
@@ -298,6 +288,20 @@ function FocusModeFull() {
     localStorage.setItem('eduflow_focus_prefs', JSON.stringify({ sceneId: scene.id, accentId: accent.id, opacity: panelOpacity }));
     localStorage.setItem('eduflow_accent', accent.id);
   }, [scene, accent, panelOpacity]);
+
+  const toggleTimer = () => {
+    // Warm-up audio to bypass autoplay blocks
+    if (audioRef.current) {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          audioRef.current?.pause();
+          if (audioRef.current) audioRef.current.currentTime = 0;
+        }).catch(() => {});
+      }
+    }
+    sessionToggleTimer();
+  };
 
   const handleCloseRequest = () => {
     if (status === 'running' || status === 'paused' || status === 'break' || status === 'break-paused') {

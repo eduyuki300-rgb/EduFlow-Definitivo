@@ -8,6 +8,7 @@ import { Search, Star, Pencil, CheckCircle2, Circle, Clock, Target, Play } from 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
+import { SUBJECT_INFO } from '../constants/subjects';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,7 +21,7 @@ const COLUMNS: { id: Status; title: string; color: string }[] = [
   { id: 'concluida', title: '✅ Pronto', color: 'bg-emerald-50/30' }
 ];
 
-export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void, subjectInfo: any }) {
+export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void }) {
   const { setActiveTask } = useFocus();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState<string>('all');
@@ -117,7 +118,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: {
                         style={{ minHeight: '400px' }}
                       >
                         {columnTasks.map((task, index) => {
-                          const info = subjectInfo[task.subject] || subjectInfo['Geral'];
+                          const info = SUBJECT_INFO[task.subject] || SUBJECT_INFO['Geral'];
                           
                           let totalItems = 0;
                           let completedItems = 0;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Task, Status } from '../types';
@@ -14,6 +14,7 @@ import { Task, Status } from '../types';
  * Para evitar múltiplas escritas no Firestore em um curto intervalo.
  */
 const pendingUpdates = new Map<string, { liquidTime: number, pomodoros: number }>();
+const isSyncing = { current: false };
 let syncTimer: NodeJS.Timeout | null = null;
 
 export function useTasks(userId: string | undefined) {
@@ -21,6 +22,11 @@ export function useTasks(userId: string | undefined) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'pending' | 'error'>('synced');
+  const syncStatusRef = useRef(syncStatus);
+
+  useEffect(() => {
+    syncStatusRef.current = syncStatus;
+  }, [syncStatus]);
 
   // Loop de Sincronização Inteligente (A cada 1 minuto)
   useEffect(() => {
@@ -34,7 +40,7 @@ export function useTasks(userId: string | undefined) {
 
     // Timer para atualizar o status visual de 'pendente' se houver algo no buffer
     const statusInterval = setInterval(() => {
-      if (pendingUpdates.size > 0 && syncStatus === 'synced') {
+      if (pendingUpdates.size > 0 && syncStatusRef.current === 'synced') {
         setSyncStatus('pending');
       }
     }, 1000);
@@ -52,7 +58,7 @@ export function useTasks(userId: string | undefined) {
       clearInterval(statusInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [userId, syncStatus]);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -99,30 +105,41 @@ export function useTasks(userId: string | undefined) {
 
   // Função para forçar a sincronização de tudo que está no buffer
   const forceSync = async () => {
-    if (pendingUpdates.size === 0 || !userId) return;
+    if (pendingUpdates.size === 0 || !userId || isSyncing.current) return;
     
+    isSyncing.current = true;
     setSyncStatus('syncing');
+    
     const updates = Array.from(pendingUpdates.entries());
     pendingUpdates.clear();
 
     try {
       const { increment } = await import('firebase/firestore');
       
-      const promises = updates.map(([taskId, data]) => {
-        const docUpdates: any = { updatedAt: serverTimestamp() };
-        if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
-        if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
-        
-        return updateDoc(doc(db, 'tasks', taskId), docUpdates);
-      });
+      await Promise.all(
+        updates.map(([taskId, data]) => {
+          const docUpdates: any = { updatedAt: serverTimestamp() };
+          if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
+          if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
+          
+          return updateDoc(doc(db, 'tasks', taskId), docUpdates);
+        })
+      );
 
-      await Promise.all(promises);
       setSyncStatus('synced');
     } catch (err) {
       console.error("Erro no Smart Sync:", err);
+      // Recuperação: Recolocar no buffer para tentar depois
+      updates.forEach(([taskId, data]) => {
+        const prev = pendingUpdates.get(taskId) || { liquidTime: 0, pomodoros: 0 };
+        pendingUpdates.set(taskId, {
+          liquidTime: prev.liquidTime + data.liquidTime,
+          pomodoros: prev.pomodoros + data.pomodoros
+        });
+      });
       setSyncStatus('error');
-      // Tentar re-adicionar ao buffer se falhou? 
-      // Por simplicidade agora, assumimos que falhas críticas são raras
+    } finally {
+      isSyncing.current = false;
     }
   };
 
