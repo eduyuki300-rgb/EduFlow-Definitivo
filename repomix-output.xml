@@ -60,6 +60,7 @@ src/components/FocusMiniPlayer.tsx
 src/components/FocusMode.tsx
 src/components/PomodoroWidget.tsx
 src/components/SemanaKanban.tsx
+src/constants/subjects.ts
 src/context/FocusContext.tsx
 src/firebase.ts
 src/hooks/useAuth.ts
@@ -86,35 +87,6 @@ This section contains the contents of the repository's files.
   "targets": {},
   "etags": {}
 }
-</file>
-
-<file path="AI_CONTEXT.md">
-# IA Context - EduFlow Project
-
-Este documento serve como guia para que outras IAs (Claude, ChatGPT, etc.) entendam o projeto EduFlow rapidamente.
-
-## 🏗 Arquitetura
-- **Core**: React + TypeScript + Vite.
-- **Backend**: Firebase Firestore (Banco de dados) & Firebase Auth (Autenticação).
-- **Estilo**: Vanilla CSS (layout principal) + Tailwind CSS (componentes e utilitários).
-- **Gerenciamento de Estado**: Hooks customizados e Context API.
-
-## 🔑 Componentes Principais
-1. **`useFocusSession.ts`**: O coração do Pomodoro. Gerencia o timer, transições entre modo Pomodoro e Cronômetro, sincronização entre abas e notificações.
-2. **`useTasks.ts`**: Motor de sincronização de tarefas. Implementa uma estratégia de "Sync Buffer" para evitar excesso de escritas no Firebase.
-3. **`App.tsx`**: Contém o `TaskModal` (editor) e a lógica principal da dashboard.
-4. **`FocusMode.tsx`**: Interface imersiva de foco.
-
-## 📜 Regras de Negócio Importantes
-- **Sincronização**: As tarefas são salvas no Firestore de forma otimizada. Não remova o `syncStatus`.
-- **Modo Estrito**: Se ativado no Pomodoro, as pausas começam automaticamente após o foco.
-- **Expansão Global**: Existe um evento customizado `eduflow-global-expand` que abre/fecha todos os `TaskCard` ao mesmo tempo.
-
-## 🛠 Ferramentas Recomendadas para IA
-Para dar todo o contexto deste repositório para uma IA de uma vez, use o **Repomix**:
-1. No terminal: `npx repomix`
-2. Isso gerará um arquivo `repomix-output.txt`.
-3. Anexe esse arquivo ao chat de qualquer IA para que ela "leia" todo o seu projeto instantaneamente.
 </file>
 
 <file path="firebase-blueprint.json">
@@ -473,6 +445,35 @@ Thumbs.db
 *.tar.zst
 </file>
 
+<file path="AI_CONTEXT.md">
+# IA Context - EduFlow Project
+
+Este documento serve como guia para que outras IAs (Claude, ChatGPT, etc.) entendam o projeto EduFlow rapidamente.
+
+## 🏗 Arquitetura
+- **Core**: React + TypeScript + Vite.
+- **Backend**: Firebase Firestore (Banco de dados) & Firebase Auth (Autenticação).
+- **Estilo**: Vanilla CSS (layout principal) + Tailwind CSS (componentes e utilitários).
+- **Gerenciamento de Estado**: Hooks customizados e Context API.
+
+## 🔑 Componentes Principais
+1. **`useFocusSession.ts`**: O coração do Pomodoro. Gerencia o timer, transições entre modo Pomodoro e Cronômetro, sincronização entre abas e notificações.
+2. **`useTasks.ts`**: Motor de sincronização de tarefas. Implementa uma estratégia de "Sync Buffer" para evitar excesso de escritas no Firebase.
+3. **`App.tsx`**: Contém o `TaskModal` (editor) e a lógica principal da dashboard.
+4. **`FocusMode.tsx`**: Interface imersiva de foco.
+
+## 📜 Regras de Negócio Importantes
+- **Sincronização**: As tarefas são salvas no Firestore de forma otimizada. Não remova o `syncStatus`.
+- **Modo Estrito**: Se ativado no Pomodoro, as pausas começam automaticamente após o foco.
+- **Expansão Global**: Existe um evento customizado `eduflow-global-expand` que abre/fecha todos os `TaskCard` ao mesmo tempo.
+
+## 🛠 Ferramentas Recomendadas para IA
+Para dar todo o contexto deste repositório para uma IA de uma vez, use o **Repomix**:
+1. No terminal: `npx repomix`
+2. Isso gerará um arquivo `repomix-output.txt`.
+3. Anexe esse arquivo ao chat de qualquer IA para que ela "leia" todo o seu projeto instantaneamente.
+</file>
+
 <file path="src/utils/audio.ts">
 /**
  * Plays a satisfying success sound using the Web Audio API.
@@ -711,6 +712,122 @@ Um aplicativo pessoal de produtividade e organização de estudos de alto rendim
 ## API Routes
 - `GET /api/health`: Verifica o status do servidor.
 - `POST /api/gemini`: Rota segura para processar requisições para a IA do Gemini (extração de dados de imagens).
+</file>
+
+<file path="src/constants/subjects.ts">
+export interface SubjectInfo {
+  emoji: string;
+  cardBg: string;
+  tagColor: string;
+  primary: string;
+  secondary: string;
+  gradient: string;
+  shadowColor: string;
+}
+
+export const SUBJECT_INFO: Record<string, SubjectInfo> = {
+  'Matemática': { 
+    emoji: '📐', 
+    cardBg: 'bg-blue-50/70', 
+    tagColor: 'bg-blue-100 text-blue-700 border-blue-200',
+    primary: '#3b82f6',
+    secondary: '#1d4ed8',
+    gradient: 'from-blue-100/50 to-indigo-100/50',
+    shadowColor: 'rgba(59, 130, 246, 0.2)'
+  },
+  'Português': { 
+    emoji: '📚', 
+    cardBg: 'bg-amber-50/70', 
+    tagColor: 'bg-amber-100 text-amber-700 border-amber-200',
+    primary: '#f59e0b',
+    secondary: '#b45309',
+    gradient: 'from-amber-100/50 to-orange-100/50',
+    shadowColor: 'rgba(245, 158, 11, 0.2)'
+  },
+  'História': { 
+    emoji: '📜', 
+    cardBg: 'bg-orange-50/70', 
+    tagColor: 'bg-orange-100 text-orange-700 border-orange-200',
+    primary: '#f97316',
+    secondary: '#c2410c',
+    gradient: 'from-orange-100/50 to-red-100/50',
+    shadowColor: 'rgba(249, 115, 22, 0.2)'
+  },
+  'Geografia': { 
+    emoji: '🌍', 
+    cardBg: 'bg-emerald-50/70', 
+    tagColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    primary: '#10b981',
+    secondary: '#047857',
+    gradient: 'from-emerald-100/50 to-teal-100/50',
+    shadowColor: 'rgba(16, 185, 129, 0.2)'
+  },
+  'Biologia': { 
+    emoji: '🧬', 
+    cardBg: 'bg-green-50/70', 
+    tagColor: 'bg-green-100 text-green-700 border-green-200',
+    primary: '#22c55e',
+    secondary: '#15803d',
+    gradient: 'from-green-100/50 to-emerald-100/50',
+    shadowColor: 'rgba(34, 197, 94, 0.2)'
+  },
+  'Física': { 
+    emoji: '⚛️', 
+    cardBg: 'bg-cyan-50/70', 
+    tagColor: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+    primary: '#06b6d4',
+    secondary: '#0891b2',
+    gradient: 'from-cyan-100/50 to-sky-100/50',
+    shadowColor: 'rgba(6, 182, 212, 0.2)'
+  },
+  'Química': { 
+    emoji: '🧪', 
+    cardBg: 'bg-purple-50/70', 
+    tagColor: 'bg-purple-100 text-purple-700 border-purple-200',
+    primary: '#8b5cf6',
+    secondary: '#6d28d9',
+    gradient: 'from-purple-100/50 to-violet-100/50',
+    shadowColor: 'rgba(139, 92, 246, 0.2)'
+  },
+  'Linguagens': { 
+    emoji: '🗣️', 
+    cardBg: 'bg-yellow-50/70', 
+    tagColor: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    primary: '#eab308',
+    secondary: '#a16207',
+    gradient: 'from-yellow-100/50 to-orange-100/50',
+    shadowColor: 'rgba(234, 179, 8, 0.2)'
+  },
+  'Humanas': { 
+    emoji: '🏛️', 
+    cardBg: 'bg-rose-50/70', 
+    tagColor: 'bg-rose-100 text-rose-700 border-rose-200',
+    primary: '#f43f5e',
+    secondary: '#be123c',
+    gradient: 'from-rose-100/50 to-pink-100/50',
+    shadowColor: 'rgba(244, 63, 94, 0.2)'
+  },
+  'Redação': { 
+    emoji: '✍️', 
+    cardBg: 'bg-indigo-50/70', 
+    tagColor: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    primary: '#6366f1',
+    secondary: '#4338ca',
+    gradient: 'from-indigo-100/50 to-blue-100/50',
+    shadowColor: 'rgba(99, 102, 241, 0.2)'
+  },
+  'Geral': { 
+    emoji: '📌', 
+    cardBg: 'bg-gray-50/70', 
+    tagColor: 'bg-gray-100 text-gray-700 border-gray-200',
+    primary: '#6b7280',
+    secondary: '#374151',
+    gradient: 'from-gray-100/50 to-slate-100/50',
+    shadowColor: 'rgba(107, 114, 128, 0.2)'
+  }
+};
+
+export const SUBJECTS = Object.keys(SUBJECT_INFO).filter(s => s !== 'Geral');
 </file>
 
 <file path="vite.config.ts">
@@ -1056,7 +1173,7 @@ export const logout = async () => {
 </file>
 
 <file path="src/hooks/useTasks.ts">
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Task, Status } from '../types';
@@ -1072,6 +1189,7 @@ import { Task, Status } from '../types';
  * Para evitar múltiplas escritas no Firestore em um curto intervalo.
  */
 const pendingUpdates = new Map<string, { liquidTime: number, pomodoros: number }>();
+const isSyncing = { current: false };
 let syncTimer: NodeJS.Timeout | null = null;
 
 export function useTasks(userId: string | undefined) {
@@ -1079,6 +1197,11 @@ export function useTasks(userId: string | undefined) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'pending' | 'error'>('synced');
+  const syncStatusRef = useRef(syncStatus);
+
+  useEffect(() => {
+    syncStatusRef.current = syncStatus;
+  }, [syncStatus]);
 
   // Loop de Sincronização Inteligente (A cada 1 minuto)
   useEffect(() => {
@@ -1092,7 +1215,7 @@ export function useTasks(userId: string | undefined) {
 
     // Timer para atualizar o status visual de 'pendente' se houver algo no buffer
     const statusInterval = setInterval(() => {
-      if (pendingUpdates.size > 0 && syncStatus === 'synced') {
+      if (pendingUpdates.size > 0 && syncStatusRef.current === 'synced') {
         setSyncStatus('pending');
       }
     }, 1000);
@@ -1110,7 +1233,7 @@ export function useTasks(userId: string | undefined) {
       clearInterval(statusInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [userId, syncStatus]);
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -1157,30 +1280,41 @@ export function useTasks(userId: string | undefined) {
 
   // Função para forçar a sincronização de tudo que está no buffer
   const forceSync = async () => {
-    if (pendingUpdates.size === 0 || !userId) return;
+    if (pendingUpdates.size === 0 || !userId || isSyncing.current) return;
     
+    isSyncing.current = true;
     setSyncStatus('syncing');
+    
     const updates = Array.from(pendingUpdates.entries());
     pendingUpdates.clear();
 
     try {
       const { increment } = await import('firebase/firestore');
       
-      const promises = updates.map(([taskId, data]) => {
-        const docUpdates: any = { updatedAt: serverTimestamp() };
-        if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
-        if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
-        
-        return updateDoc(doc(db, 'tasks', taskId), docUpdates);
-      });
+      await Promise.all(
+        updates.map(([taskId, data]) => {
+          const docUpdates: any = { updatedAt: serverTimestamp() };
+          if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
+          if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
+          
+          return updateDoc(doc(db, 'tasks', taskId), docUpdates);
+        })
+      );
 
-      await Promise.all(promises);
       setSyncStatus('synced');
     } catch (err) {
       console.error("Erro no Smart Sync:", err);
+      // Recuperação: Recolocar no buffer para tentar depois
+      updates.forEach(([taskId, data]) => {
+        const prev = pendingUpdates.get(taskId) || { liquidTime: 0, pomodoros: 0 };
+        pendingUpdates.set(taskId, {
+          liquidTime: prev.liquidTime + data.liquidTime,
+          pomodoros: prev.pomodoros + data.pomodoros
+        });
+      });
       setSyncStatus('error');
-      // Tentar re-adicionar ao buffer se falhou? 
-      // Por simplicidade agora, assumimos que falhas críticas são raras
+    } finally {
+      isSyncing.current = false;
     }
   };
 
@@ -1400,6 +1534,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
 import { playSuccessSound } from '../utils/audio';
+import { SUBJECT_INFO } from '../constants/subjects';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -1432,18 +1567,7 @@ const ACCENT_COLORS = [
   { id: 'cyan', label: 'Calma', hex: '#22d3ee' },
 ];
 
-const SUBJECT_INFO: Record<string, { emoji: string; color: string }> = {
-  'Geral': { emoji: '📌', color: '#6b7280' },
-  'Biologia': { emoji: '🧬', color: '#22c55e' },
-  'Física': { emoji: '⚛️', color: '#06b6d4' },
-  'Química': { emoji: '🧪', color: '#8b5cf6' },
-  'Matemática': { emoji: '📐', color: '#3b82f6' },
-  'Linguagens': { emoji: '🗣️', color: '#eab308' },
-  'Humanas': { emoji: '🌍', color: '#f97316' },
-  'Redação': { emoji: '✍️', color: '#f43f5e' },
-  'História': { emoji: '📜', color: '#f97316' },
-  'Português': { emoji: '📚', color: '#f59e0b' },
-};
+// SUBJECT_INFO imported from src/constants/subjects.ts
 
 function seededRandom(i: number, salt: number) {
   const x = Math.sin(i * 83492791 + salt * 2654435761) * 10000;
@@ -1636,7 +1760,7 @@ function FocusModeFull() {
   const { 
     mode, setMode, status, focusDuration, setFocusDuration, breakDuration, setBreakDuration,
     longBreakDuration, setLongBreakDuration, focusCycles, isStrictMode, setIsStrictMode,
-    timeLeft, timeElapsed, toggleTimer, resetTimer, skipToComplete, discardSessionTime, startBreak 
+    timeLeft, timeElapsed, toggleTimer: sessionToggleTimer, resetTimer, skipToComplete, discardSessionTime, startBreak 
   } = session;
 
   const [showSettings, setShowSettings] = useState(false);
@@ -1688,6 +1812,20 @@ function FocusModeFull() {
     localStorage.setItem('eduflow_focus_prefs', JSON.stringify({ sceneId: scene.id, accentId: accent.id, opacity: panelOpacity }));
     localStorage.setItem('eduflow_accent', accent.id);
   }, [scene, accent, panelOpacity]);
+
+  const toggleTimer = () => {
+    // Warm-up audio to bypass autoplay blocks
+    if (audioRef.current) {
+      const playPromise = audioRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          audioRef.current?.pause();
+          if (audioRef.current) audioRef.current.currentTime = 0;
+        }).catch(() => {});
+      }
+    }
+    sessionToggleTimer();
+  };
 
   const handleCloseRequest = () => {
     if (status === 'running' || status === 'paused' || status === 'break' || status === 'break-paused') {
@@ -1915,6 +2053,7 @@ import { Search, Star, Pencil, CheckCircle2, Circle, Clock, Target, Play } from 
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
+import { SUBJECT_INFO } from '../constants/subjects';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -1927,7 +2066,7 @@ const COLUMNS: { id: Status; title: string; color: string }[] = [
   { id: 'concluida', title: '✅ Pronto', color: 'bg-emerald-50/30' }
 ];
 
-export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void, subjectInfo: any }) {
+export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void }) {
   const { setActiveTask } = useFocus();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState<string>('all');
@@ -2024,7 +2163,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound, subjectInfo }: {
                         style={{ minHeight: '400px' }}
                       >
                         {columnTasks.map((task, index) => {
-                          const info = subjectInfo[task.subject] || subjectInfo['Geral'];
+                          const info = SUBJECT_INFO[task.subject] || SUBJECT_INFO['Geral'];
                           
                           let totalItems = 0;
                           let completedItems = 0;
@@ -2505,377 +2644,23 @@ html {
   animation: shimmer 1.5s infinite;
   border-radius: 8px;
 }
-</file>
 
-<file path="src/hooks/useFocusSession.ts">
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { syncFocusSession } from './useTasks';
-
-// ─── TYPES ───────────────────────────────────────────────────────────
-
-export type TimerMode = 'pomodoro' | 'stopwatch';
-export type TimerStatus =
-  | 'idle'
-  | 'running'
-  | 'paused'
-  | 'break'
-  | 'break-paused'
-  | 'finished';
-
-export interface FocusSessionApi {
-  // Settings
-  mode: TimerMode;
-  setMode: (m: TimerMode) => void;
-  focusDuration: number; // seconds
-  setFocusDuration: (v: number) => void;
-  breakDuration: number; // seconds
-  setBreakDuration: (v: number) => void;
-  longBreakDuration: number; // seconds
-  setLongBreakDuration: (v: number) => void;
-  isStrictMode: boolean;
-  setIsStrictMode: (v: boolean) => void;
-
-  // Timer state
-  status: TimerStatus;
-  timeLeft: number; // seconds remaining (pomodoro)
-  timeElapsed: number; // seconds elapsed (stopwatch / interval)
-  focusCycles: number; // completed focus cycles
-  sessionLiquidTime: number; // total focused seconds this session
-
-  // Actions
-  toggleTimer: () => void;
-  resetTimer: () => void;
-  skipToComplete: () => void;
-  startBreak: () => void;
-  skipBreakNewFocus: () => void;
-  discardSessionTime: () => void;
-  closeAfterPersist: () => Promise<void>;
+/* ── Focus Mode Particle Animations ─────────────────────── */
+@keyframes twinkle {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1.2); }
 }
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────
-
-const PREF = 'eduflow_session_';
-
-function readInt(key: string, fallback: number) {
-  try {
-    const v = Number(localStorage.getItem(PREF + key));
-    return isNaN(v) || v === 0 ? fallback : v;
-  } catch {
-    return fallback;
-  }
+@keyframes float-up {
+  0%   { transform: translateY(0)   scale(1);    opacity: 0.8; }
+  80%  { opacity: 0.6; }
+  100% { transform: translateY(-110vh) scale(0.4); opacity: 0; }
 }
 
-function readBool(key: string) {
-  try {
-    return localStorage.getItem(PREF + key) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function readStr<T extends string>(key: string, fallback: T): T {
-  try {
-    return (localStorage.getItem(PREF + key) as T) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-// ─── HOOK ────────────────────────────────────────────────────────────
-
-export function useFocusSession(
-  taskId: string,
-  taskTitle: string
-): FocusSessionApi {
-  // ── Persisted settings ──────────────────────────────────────────────
-  const [mode, setModeState] = useState<TimerMode>(() => readStr<TimerMode>('mode', 'pomodoro'));
-  const [focusDuration, setFocusDurationState] = useState(() => readInt('focusDur', 1500));
-  const [breakDuration, setBreakDurationState] = useState(() => readInt('breakDur', 300));
-  const [longBreakDuration, setLongBreakDurationState] = useState(() => readInt('longBreakDur', 900));
-  const [isStrictMode, setIsStrictModeState] = useState(() => readBool('strict'));
-
-  // ── Timer state ─────────────────────────────────────────────────────
-  const [status, setStatus] = useState<TimerStatus>('idle');
-  const [timeLeft, setTimeLeft] = useState(() => readInt('focusDur', 1500));
-  const [timeElapsed, setTimeElapsed] = useState(0);
-  const [focusCycles, setFocusCycles] = useState(0);
-  const [sessionLiquidTime, setSessionLiquidTime] = useState(0);
-  const [pendingLiquidTime, setPendingLiquidTime] = useState(0);
-  const [pendingPomodoros, setPendingPomodoros] = useState(0);
-
-  // ── Refs ────────────────────────────────────────────────────────────
-  const statusRef = useRef(status);
-  const timeLeftRef = useRef(timeLeft);
-  const timeElapsedRef = useRef(timeElapsed);
-  const focusDurRef = useRef(focusDuration);
-  const breakDurRef = useRef(breakDuration);
-  const longBreakDurRef = useRef(longBreakDuration);
-  const focusCyclesRef = useRef(focusCycles);
-  const isStrictRef = useRef(isStrictMode);
-  const modeRef = useRef(mode);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const taskTitleRef = useRef(taskTitle);
-
-  // Keep refs in sync
-  useEffect(() => { statusRef.current = status; }, [status]);
-  useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
-  useEffect(() => { timeElapsedRef.current = timeElapsed; }, [timeElapsed]);
-  useEffect(() => { focusDurRef.current = focusDuration; }, [focusDuration]);
-  useEffect(() => { breakDurRef.current = breakDuration; }, [breakDuration]);
-  useEffect(() => { longBreakDurRef.current = longBreakDuration; }, [longBreakDuration]);
-  useEffect(() => { focusCyclesRef.current = focusCycles; }, [focusCycles]);
-  useEffect(() => { isStrictRef.current = isStrictMode; }, [isStrictMode]);
-  useEffect(() => { modeRef.current = mode; }, [mode]);
-  useEffect(() => { taskTitleRef.current = taskTitle; }, [taskTitle]);
-
-  // Sync settings to localStorage
-  useEffect(() => { localStorage.setItem(PREF + 'mode', mode); }, [mode]);
-  useEffect(() => { localStorage.setItem(PREF + 'focusDur', String(focusDuration)); }, [focusDuration]);
-  useEffect(() => { localStorage.setItem(PREF + 'breakDur', String(breakDuration)); }, [breakDuration]);
-  useEffect(() => { localStorage.setItem(PREF + 'longBreakDur', String(longBreakDuration)); }, [longBreakDuration]);
-  useEffect(() => { localStorage.setItem(PREF + 'strict', String(isStrictMode)); }, [isStrictMode]);
-
-  // Sync session state for persistence and multi-tab
-  useEffect(() => {
-    try {
-      const state = {
-        status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(PREF + 'session_state', JSON.stringify(state));
-    } catch {}
-  }, [status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros]);
-
-  // Auto-start logic for Strict Mode
-  useEffect(() => {
-    if (status === 'idle' && isStrictMode && timeLeft === focusDuration) {
-      // If we just finished a break and it's idle, and strict mode is on, start next focus
-      // (Small delay to allow UI to show break-end notification if any)
-      const timer = setTimeout(() => {
-        if (statusRef.current === 'idle') {
-          setStatus('running');
-          startTick('focus');
-        }
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [status, isStrictMode, focusDuration, timeLeft]);
-
-  // ── Logic Functions ─────────────────────────────────────────────────
-
-  const clearTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  const updateTitle = useCallback((secs: number, phase: 'focus' | 'break' | 'done' | 'idle') => {
-    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
-    const ss = String(secs % 60).padStart(2, '0');
-    if (phase === 'focus') document.title = `⏳ (${mm}:${ss}) — ${taskTitleRef.current}`;
-    else if (phase === 'break') document.title = `☕ (${mm}:${ss}) — Pausa`;
-    else if (phase === 'done') document.title = '✅ Foco concluído!';
-    else document.title = 'EduFlow';
-  }, []);
-
-  const startTick = useCallback((type: 'focus' | 'break') => {
-    clearTimer();
-    intervalRef.current = setInterval(() => {
-      const s = statusRef.current;
-      const m = modeRef.current;
-
-      if (s !== 'running' && s !== 'break') {
-        clearTimer();
-        return;
-      }
-
-      if (type === 'focus') {
-        if (m === 'pomodoro') {
-          setTimeLeft((prev) => {
-            const next = prev - 1;
-            timeLeftRef.current = next;
-            if (next <= 0) {
-              clearTimer();
-              const newCycles = focusCyclesRef.current + 1;
-              setFocusCycles(newCycles);
-              const dur = focusDurRef.current;
-              setPendingLiquidTime(p => p + dur);
-              setSessionLiquidTime(s => s + dur);
-              setPendingPomodoros(p => p + 1);
-              setStatus('finished');
-              updateTitle(0, 'done');
-              return 0;
-            }
-            setTimeElapsed(e => e + 1);
-            setSessionLiquidTime(s => s + 1);
-            updateTitle(next, 'focus');
-            return next;
-          });
-        } else {
-          // Stopwatch counts UP
-          setTimeElapsed(e => {
-            const next = e + 1;
-            setSessionLiquidTime(s => s + 1);
-            updateTitle(next, 'focus');
-            return next;
-          });
-          setTimeLeft(0);
-        }
-      } else {
-        // Break Tick
-        setTimeLeft((prev) => {
-          const next = prev - 1;
-          timeLeftRef.current = next;
-          if (next <= 0) {
-            clearTimer();
-            const fd = focusDurRef.current;
-            setStatus('idle');
-            setTimeLeft(fd);
-            setTimeElapsed(0);
-            updateTitle(0, 'idle');
-            // Logic for auto-next-cycle if strict can be handled in a notification callback or here
-            return 0;
-          }
-          updateTitle(next, 'break');
-          return next;
-        });
-      }
-    }, 1000);
-  }, [clearTimer, updateTitle]);
-
-  // Multi-tab Sync Listener
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === PREF + 'session_state' && e.newValue) {
-        try {
-          const s = JSON.parse(e.newValue);
-          if (Date.now() - s.timestamp < 2000) {
-            setStatus(s.status);
-            setTimeLeft(s.timeLeft);
-            setTimeElapsed(s.timeElapsed);
-            setFocusCycles(s.focusCycles);
-            setPendingLiquidTime(s.pendingLiquidTime);
-            setPendingPomodoros(s.pendingPomodoros);
-            
-            if ((s.status === 'running' || s.status === 'break') && !intervalRef.current) {
-              startTick(s.status === 'running' ? 'focus' : 'break');
-            } else if (s.status !== 'running' && s.status !== 'break') {
-              clearTimer();
-            }
-          }
-        } catch {}
-      }
-    };
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, [startTick, clearTimer]);
-
-  // Initial Load
-  useEffect(() => {
-    const saved = localStorage.getItem(PREF + 'session_state');
-    if (saved) {
-      try {
-        const s = JSON.parse(saved);
-        if (Date.now() - s.timestamp < 24 * 60 * 60 * 1000) {
-          setStatus(s.status);
-          setTimeLeft(s.timeLeft);
-          setTimeElapsed(s.timeElapsed);
-          setFocusCycles(s.focusCycles);
-          setPendingLiquidTime(s.pendingLiquidTime);
-          setPendingPomodoros(s.pendingPomodoros);
-          if (s.status === 'running') startTick('focus');
-          else if (s.status === 'break') startTick('break');
-        }
-      } catch {}
-    }
-  }, []);
-
-  // ── Actions ─────────────────────────────────────────────────────────
-
-  const toggleTimer = useCallback(() => {
-    const s = statusRef.current;
-    if (s === 'idle' || s === 'paused' || s === 'finished') {
-      if (s === 'finished') {
-        const fd = focusDurRef.current;
-        setTimeLeft(fd);
-        setTimeElapsed(0);
-      }
-      setStatus('running');
-      startTick('focus');
-    } else if (s === 'running') {
-      clearTimer();
-      setStatus('paused');
-    } else if (s === 'break') {
-      clearTimer();
-      setStatus('break-paused');
-    } else if (s === 'break-paused') {
-      setStatus('break');
-      startTick('break');
-    }
-  }, [clearTimer, startTick]);
-
-  const resetTimer = useCallback(() => {
-    clearTimer();
-    const fd = focusDurRef.current;
-    setStatus('idle');
-    setTimeLeft(fd);
-    setTimeElapsed(0);
-    updateTitle(0, 'idle');
-  }, [clearTimer, updateTitle]);
-
-  const skipToComplete = useCallback(() => {
-    if (statusRef.current !== 'running') return;
-    clearTimer();
-    const elapsed = modeRef.current === 'pomodoro' ? (focusDurRef.current - timeLeftRef.current) : timeElapsedRef.current;
-    setFocusCycles(c => c + 1);
-    setPendingLiquidTime(p => p + elapsed);
-    setSessionLiquidTime(s => s + elapsed);
-    setPendingPomodoros(p => p + 1);
-    setStatus('finished');
-    setTimeLeft(0);
-    updateTitle(0, 'done');
-  }, [clearTimer, updateTitle]);
-
-  const startBreak = useCallback(() => {
-    const isLong = focusCyclesRef.current > 0 && focusCyclesRef.current % 4 === 0;
-    const dur = isLong ? longBreakDurRef.current : breakDurRef.current;
-    setStatus('break');
-    setTimeLeft(dur);
-    startTick('break');
-  }, [startTick]);
-
-  const skipBreakNewFocus = useCallback(() => {
-    resetTimer();
-  }, [resetTimer]);
-
-  const closeAfterPersist = useCallback(async () => {
-    clearTimer();
-    const extra = statusRef.current === 'running' ? (focusDurRef.current - timeLeftRef.current) : 0;
-    syncFocusSession(taskId, pendingLiquidTime + extra, pendingPomodoros);
-    setPendingLiquidTime(0);
-    setPendingPomodoros(0);
-  }, [clearTimer, taskId, pendingLiquidTime, pendingPomodoros]);
-
-  const discardSessionTime = useCallback(() => {
-    clearTimer();
-    setPendingLiquidTime(0);
-    setPendingPomodoros(0);
-    setSessionLiquidTime(0);
-    localStorage.removeItem(PREF + 'session_state');
-    resetTimer();
-  }, [clearTimer, resetTimer]);
-
-  return {
-    mode, setMode: (m) => { setModeState(m); resetTimer(); },
-    status, focusDuration, setFocusDuration: setFocusDurationState,
-    breakDuration, setBreakDuration: setBreakDurationState,
-    longBreakDuration, setLongBreakDuration: setLongBreakDurationState,
-    isStrictMode, setIsStrictMode: setIsStrictModeState,
-    timeLeft, timeElapsed, focusCycles, sessionLiquidTime,
-    toggleTimer, resetTimer, skipToComplete, startBreak, skipBreakNewFocus,
-    discardSessionTime, closeAfterPersist
-  };
+@keyframes bokeh-float {
+  0%, 100% { transform: translate(0, 0)       scale(1);    opacity: 0.06; }
+  33%       { transform: translate(12px, -18px) scale(1.08); opacity: 0.12; }
+  66%       { transform: translate(-8px, 10px)  scale(0.95); opacity: 0.08; }
 }
 </file>
 
@@ -3213,6 +2998,419 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
 }
 </file>
 
+<file path="src/hooks/useFocusSession.ts">
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { syncFocusSession } from './useTasks';
+
+// ─── TYPES ───────────────────────────────────────────────────────────
+
+export type TimerMode = 'pomodoro' | 'stopwatch';
+export type TimerStatus =
+  | 'idle'
+  | 'running'
+  | 'paused'
+  | 'break'
+  | 'break-paused'
+  | 'finished';
+
+export interface FocusSessionApi {
+  // Settings
+  mode: TimerMode;
+  setMode: (m: TimerMode) => void;
+  focusDuration: number; // seconds
+  setFocusDuration: (v: number) => void;
+  breakDuration: number; // seconds
+  setBreakDuration: (v: number) => void;
+  longBreakDuration: number; // seconds
+  setLongBreakDuration: (v: number) => void;
+  isStrictMode: boolean;
+  setIsStrictMode: (v: boolean) => void;
+
+  // Timer state
+  status: TimerStatus;
+  timeLeft: number; // seconds remaining (pomodoro)
+  timeElapsed: number; // seconds elapsed (stopwatch / interval)
+  focusCycles: number; // completed focus cycles
+  sessionLiquidTime: number; // total focused seconds this session
+
+  // Actions
+  toggleTimer: () => void;
+  resetTimer: () => void;
+  skipToComplete: () => void;
+  startBreak: () => void;
+  skipBreakNewFocus: () => void;
+  discardSessionTime: () => void;
+  closeAfterPersist: () => Promise<void>;
+}
+
+// ─── CONSTANTS ───────────────────────────────────────────────────────
+
+const PREF = 'eduflow_session_';
+
+function readInt(key: string, fallback: number) {
+  try {
+    const v = Number(localStorage.getItem(PREF + key));
+    return isNaN(v) || v === 0 ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+
+function readBool(key: string) {
+  try {
+    return localStorage.getItem(PREF + key) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function readStr<T extends string>(key: string, fallback: T): T {
+  try {
+    return (localStorage.getItem(PREF + key) as T) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// ─── HOOK ────────────────────────────────────────────────────────────
+
+export function useFocusSession(
+  taskId: string,
+  taskTitle: string
+): FocusSessionApi {
+  // ── Persisted settings ──────────────────────────────────────────────
+  const [mode, setModeState] = useState<TimerMode>(() => readStr<TimerMode>('mode', 'pomodoro'));
+  const [focusDuration, setFocusDurationState] = useState(() => readInt('focusDur', 1500));
+  const [breakDuration, setBreakDurationState] = useState(() => readInt('breakDur', 300));
+  const [longBreakDuration, setLongBreakDurationState] = useState(() => readInt('longBreakDur', 900));
+  const [isStrictMode, setIsStrictModeState] = useState(() => readBool('strict'));
+
+  // ── Timer state (Lazy Initializer for Persistence & Drift) ─────────
+  const [initialState] = useState(() => {
+    const saved = localStorage.getItem(PREF + 'session_state');
+    if (!saved) return null;
+    try {
+      const s = JSON.parse(saved);
+      const AGE_LIMIT = 24 * 60 * 60 * 1000; // 24h
+      if (Date.now() - s.timestamp > AGE_LIMIT) return null;
+
+      const driftSec = Math.floor((Date.now() - s.timestamp) / 1000);
+      let tLeft = s.timeLeft;
+      let tElapsed = s.timeElapsed;
+      let tStatus = s.status;
+
+      if (s.status === 'running') {
+        tLeft = Math.max(0, s.timeLeft - driftSec);
+        tElapsed = s.timeElapsed + driftSec;
+        if (tLeft === 0) tStatus = 'finished';
+      } else if (s.status === 'break') {
+        tLeft = Math.max(0, s.timeLeft - driftSec);
+        if (tLeft === 0) tStatus = 'idle';
+      }
+
+      return { ...s, status: tStatus, timeLeft: tLeft, timeElapsed: tElapsed };
+    } catch { return null; }
+  });
+
+  const [status, setStatus] = useState<TimerStatus>(initialState?.status ?? 'idle');
+  const [timeLeft, setTimeLeft] = useState(initialState?.timeLeft ?? focusDuration);
+  const [timeElapsed, setTimeElapsed] = useState(initialState?.timeElapsed ?? 0);
+  const [focusCycles, setFocusCycles] = useState(initialState?.focusCycles ?? 0);
+  const [sessionLiquidTime, setSessionLiquidTime] = useState(0);
+  const [pendingLiquidTime, setPendingLiquidTime] = useState(initialState?.pendingLiquidTime ?? 0);
+  const [pendingPomodoros, setPendingPomodoros] = useState(initialState?.pendingPomodoros ?? 0);
+
+  // ── Refs ────────────────────────────────────────────────────────────
+  const statusRef = useRef(status);
+  const timeLeftRef = useRef(timeLeft);
+  const timeElapsedRef = useRef(timeElapsed);
+  const focusDurRef = useRef(focusDuration);
+  const breakDurRef = useRef(breakDuration);
+  const longBreakDurRef = useRef(longBreakDuration);
+  const focusCyclesRef = useRef(focusCycles);
+  const isStrictRef = useRef(isStrictMode);
+  const modeRef = useRef(mode);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const taskTitleRef = useRef(taskTitle);
+
+  // Keep refs in sync
+  useEffect(() => { statusRef.current = status; }, [status]);
+  useEffect(() => { timeLeftRef.current = timeLeft; }, [timeLeft]);
+  useEffect(() => { timeElapsedRef.current = timeElapsed; }, [timeElapsed]);
+  useEffect(() => { focusDurRef.current = focusDuration; }, [focusDuration]);
+  useEffect(() => { breakDurRef.current = breakDuration; }, [breakDuration]);
+  useEffect(() => { longBreakDurRef.current = longBreakDuration; }, [longBreakDuration]);
+  useEffect(() => { focusCyclesRef.current = focusCycles; }, [focusCycles]);
+  useEffect(() => { isStrictRef.current = isStrictMode; }, [isStrictMode]);
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { taskTitleRef.current = taskTitle; }, [taskTitle]);
+
+  // Sync settings to localStorage
+  useEffect(() => { localStorage.setItem(PREF + 'mode', mode); }, [mode]);
+  useEffect(() => { localStorage.setItem(PREF + 'focusDur', String(focusDuration)); }, [focusDuration]);
+  useEffect(() => { localStorage.setItem(PREF + 'breakDur', String(breakDuration)); }, [breakDuration]);
+  useEffect(() => { localStorage.setItem(PREF + 'longBreakDur', String(longBreakDuration)); }, [longBreakDuration]);
+  useEffect(() => { localStorage.setItem(PREF + 'strict', String(isStrictMode)); }, [isStrictMode]);
+
+  // Sync session state for persistence and multi-tab
+  useEffect(() => {
+    try {
+      const state = {
+        status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(PREF + 'session_state', JSON.stringify(state));
+    } catch {}
+  }, [status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros]);
+
+  // Auto-start logic with Drift Compensation on Initial Load
+  useEffect(() => {
+    if (status === 'running') startTick('focus');
+    else if (status === 'break') startTick('break');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-start logic for Strict Mode
+  useEffect(() => {
+    if (status === 'idle' && isStrictMode && timeLeft === focusDuration) {
+      // If we just finished a break and it's idle, and strict mode is on, start next focus
+      // (Small delay to allow UI to show break-end notification if any)
+      const timer = setTimeout(() => {
+        if (statusRef.current === 'idle') {
+          setStatus('running');
+          startTick('focus');
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, isStrictMode, focusDuration, timeLeft]);
+
+  // ── Logic Functions ─────────────────────────────────────────────────
+
+  const clearTimer = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  const updateTitle = useCallback((secs: number, phase: 'focus' | 'break' | 'done' | 'idle') => {
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    if (phase === 'focus') document.title = `⏳ (${mm}:${ss}) — ${taskTitleRef.current}`;
+    else if (phase === 'break') document.title = `☕ (${mm}:${ss}) — Pausa`;
+    else if (phase === 'done') document.title = '✅ Foco concluído!';
+    else document.title = 'EduFlow';
+  }, []);
+
+  const startTick = useCallback((type: 'focus' | 'break') => {
+    clearTimer();
+    intervalRef.current = setInterval(() => {
+      const s = statusRef.current;
+      const m = modeRef.current;
+
+      if (s !== 'running' && s !== 'break') {
+        clearTimer();
+        return;
+      }
+
+      if (type === 'focus') {
+        if (m === 'pomodoro') {
+          setTimeLeft((prev) => {
+            const next = prev - 1;
+            timeLeftRef.current = next;
+            if (next <= 0) {
+              clearTimer();
+              const newCycles = focusCyclesRef.current + 1;
+              setFocusCycles(newCycles);
+              const dur = focusDurRef.current;
+              // Sincronizar ciclo completo imediatamente com o motor global
+              syncFocusSession(taskId, dur, 1);
+              setSessionLiquidTime(s => s + dur);
+              setStatus('finished');
+              updateTitle(0, 'done');
+              return 0;
+            }
+            setTimeElapsed(e => e + 1);
+            setSessionLiquidTime(s => s + 1);
+            updateTitle(next, 'focus');
+            return next;
+          });
+        } else {
+          // Stopwatch counts UP
+          setTimeElapsed(e => {
+            const next = e + 1;
+            setSessionLiquidTime(s => s + 1);
+            updateTitle(next, 'focus');
+            return next;
+          });
+          setTimeLeft(0);
+        }
+      } else {
+        // Break Tick
+        setTimeLeft((prev) => {
+          const next = prev - 1;
+          timeLeftRef.current = next;
+          if (next <= 0) {
+            clearTimer();
+            const fd = focusDurRef.current;
+            setStatus('idle');
+            setTimeLeft(fd);
+            setTimeElapsed(0);
+            updateTitle(0, 'idle');
+            // Logic for auto-next-cycle if strict can be handled in a notification callback or here
+            return 0;
+          }
+          updateTitle(next, 'break');
+          return next;
+        });
+      }
+    }, 1000);
+  }, [clearTimer, updateTitle]);
+
+  // Multi-tab Sync Listener
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === PREF + 'session_state' && e.newValue) {
+        try {
+          const s = JSON.parse(e.newValue);
+          if (Date.now() - s.timestamp < 2000) {
+            setStatus(s.status);
+            setTimeLeft(s.timeLeft);
+            setTimeElapsed(s.timeElapsed);
+            setFocusCycles(s.focusCycles);
+            setPendingLiquidTime(s.pendingLiquidTime);
+            setPendingPomodoros(s.pendingPomodoros);
+            
+            if ((s.status === 'running' || s.status === 'break') && !intervalRef.current) {
+              startTick(s.status === 'running' ? 'focus' : 'break');
+            } else if (s.status !== 'running' && s.status !== 'break') {
+              clearTimer();
+            }
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [startTick, clearTimer]);
+
+  // Initial Load
+  useEffect(() => {
+    const saved = localStorage.getItem(PREF + 'session_state');
+    if (saved) {
+      try {
+        const s = JSON.parse(saved);
+        if (Date.now() - s.timestamp < 24 * 60 * 60 * 1000) {
+          setStatus(s.status);
+          setTimeLeft(s.timeLeft);
+          setTimeElapsed(s.timeElapsed);
+          setFocusCycles(s.focusCycles);
+          setPendingLiquidTime(s.pendingLiquidTime);
+          setPendingPomodoros(s.pendingPomodoros);
+          if (s.status === 'running') startTick('focus');
+          else if (s.status === 'break') startTick('break');
+        }
+      } catch {}
+    }
+  }, []);
+
+  // ── Actions ─────────────────────────────────────────────────────────
+
+  const toggleTimer = useCallback(() => {
+    const s = statusRef.current;
+    if (s === 'idle' || s === 'paused' || s === 'finished') {
+      if (s === 'finished') {
+        const fd = focusDurRef.current;
+        setTimeLeft(fd);
+        setTimeElapsed(0);
+      }
+      setStatus('running');
+      startTick('focus');
+    } else if (s === 'running') {
+      clearTimer();
+      setStatus('paused');
+    } else if (s === 'break') {
+      clearTimer();
+      setStatus('break-paused');
+    } else if (s === 'break-paused') {
+      setStatus('break');
+      startTick('break');
+    }
+  }, [clearTimer, startTick]);
+
+  const resetTimer = useCallback(() => {
+    clearTimer();
+    const fd = focusDurRef.current;
+    setStatus('idle');
+    setTimeLeft(fd);
+    setTimeElapsed(0);
+    updateTitle(0, 'idle');
+  }, [clearTimer, updateTitle]);
+
+  const skipToComplete = useCallback(() => {
+    if (statusRef.current !== 'running') return;
+    clearTimer();
+    const elapsed = modeRef.current === 'pomodoro' ? (focusDurRef.current - timeLeftRef.current) : timeElapsedRef.current;
+    setFocusCycles(c => c + 1);
+    // Sincronizar progresso parcial/pulado imediatamente
+    syncFocusSession(taskId, elapsed, 1);
+    setSessionLiquidTime(s => s + elapsed);
+    setStatus('finished');
+    setTimeLeft(0);
+    updateTitle(0, 'done');
+  }, [clearTimer, updateTitle, taskId]);
+
+  const startBreak = useCallback(() => {
+    const isLong = focusCyclesRef.current > 0 && focusCyclesRef.current % 4 === 0;
+    const dur = isLong ? longBreakDurRef.current : breakDurRef.current;
+    setStatus('break');
+    setTimeLeft(dur);
+    startTick('break');
+  }, [startTick]);
+
+  const skipBreakNewFocus = useCallback(() => {
+    resetTimer();
+  }, [resetTimer]);
+
+  const closeAfterPersist = useCallback(async () => {
+    clearTimer();
+    // Cálculo robusto para qualquer modo (Pomodoro ou Cronômetro)
+    let extra = 0;
+    if (statusRef.current === 'running') {
+      extra = modeRef.current === 'pomodoro' 
+        ? (focusDurRef.current - timeLeftRef.current) 
+        : timeElapsedRef.current;
+    }
+    
+    // Enviar qualquer tempo pendente + tempo da sessão atual não salva
+    syncFocusSession(taskId, pendingLiquidTime + extra, pendingPomodoros);
+    
+    setPendingLiquidTime(0);
+    setPendingPomodoros(0);
+  }, [clearTimer, taskId, pendingLiquidTime, pendingPomodoros]);
+
+  const discardSessionTime = useCallback(() => {
+    clearTimer();
+    setPendingLiquidTime(0);
+    setPendingPomodoros(0);
+    setSessionLiquidTime(0);
+    localStorage.removeItem(PREF + 'session_state');
+    resetTimer();
+  }, [clearTimer, resetTimer]);
+
+  return {
+    mode, setMode: (m) => { setModeState(m); resetTimer(); },
+    status, focusDuration, setFocusDuration: setFocusDurationState,
+    breakDuration, setBreakDuration: setBreakDurationState,
+    longBreakDuration, setLongBreakDuration: setLongBreakDurationState,
+    isStrictMode, setIsStrictMode: setIsStrictModeState,
+    timeLeft, timeElapsed, focusCycles, sessionLiquidTime,
+    toggleTimer, resetTimer, skipToComplete, startBreak, skipBreakNewFocus,
+    discardSessionTime, closeAfterPersist
+  };
+}
+</file>
+
 <file path="src/App.tsx">
 /**
  * @license
@@ -3244,6 +3442,8 @@ import { Cloud, CloudOff, CloudCheck, CloudUpload } from 'lucide-react';
 import { playSuccessSound } from './utils/audio';
 import { SemanaKanban } from './components/SemanaKanban';
 import { FocusProvider, useFocus } from './context/FocusContext';
+import { SUBJECT_INFO, SUBJECTS } from './constants/subjects';
+import type { SubjectInfo } from './constants/subjects';
 
 // removed local playSuccessSound, now using from utils
 
@@ -3253,118 +3453,7 @@ function cn(...inputs: ClassValue[]) {
 
 // Removed local Tab type, now defined via TABS
 
-interface SubjectInfo {
-  emoji: string;
-  cardBg: string;
-  tagColor: string;
-  primary: string;
-  secondary: string;
-  gradient: string;
-  shadowColor: string;
-}
-
-const SUBJECT_INFO: Record<string, SubjectInfo> = {
-  'Matemática': { 
-    emoji: '📐', 
-    cardBg: 'bg-blue-50/70', 
-    tagColor: 'bg-blue-100 text-blue-700 border-blue-200',
-    primary: '#3b82f6',
-    secondary: '#1d4ed8',
-    gradient: 'from-blue-100/50 to-indigo-100/50',
-    shadowColor: 'rgba(59, 130, 246, 0.2)'
-  },
-  'Português': { 
-    emoji: '📚', 
-    cardBg: 'bg-amber-50/70', 
-    tagColor: 'bg-amber-100 text-amber-700 border-amber-200',
-    primary: '#f59e0b',
-    secondary: '#b45309',
-    gradient: 'from-amber-100/50 to-orange-100/50',
-    shadowColor: 'rgba(245, 158, 11, 0.2)'
-  },
-  'História': { 
-    emoji: '📜', 
-    cardBg: 'bg-orange-50/70', 
-    tagColor: 'bg-orange-100 text-orange-700 border-orange-200',
-    primary: '#f97316',
-    secondary: '#c2410c',
-    gradient: 'from-orange-100/50 to-red-100/50',
-    shadowColor: 'rgba(249, 115, 22, 0.2)'
-  },
-  'Geografia': { 
-    emoji: '🌍', 
-    cardBg: 'bg-emerald-50/70', 
-    tagColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    primary: '#10b981',
-    secondary: '#047857',
-    gradient: 'from-emerald-100/50 to-teal-100/50',
-    shadowColor: 'rgba(16, 185, 129, 0.2)'
-  },
-  'Biologia': { 
-    emoji: '🧬', 
-    cardBg: 'bg-green-50/70', 
-    tagColor: 'bg-green-100 text-green-700 border-green-200',
-    primary: '#22c55e',
-    secondary: '#15803d',
-    gradient: 'from-green-100/50 to-emerald-100/50',
-    shadowColor: 'rgba(34, 197, 94, 0.2)'
-  },
-  'Física': { 
-    emoji: '⚛️', 
-    cardBg: 'bg-cyan-50/70', 
-    tagColor: 'bg-cyan-100 text-cyan-700 border-cyan-200',
-    primary: '#06b6d4',
-    secondary: '#0e7490',
-    gradient: 'from-cyan-100/50 to-blue-100/50',
-    shadowColor: 'rgba(6, 182, 212, 0.2)'
-  },
-  'Química': { 
-    emoji: '🧪', 
-    cardBg: 'bg-purple-50/70', 
-    tagColor: 'bg-purple-100 text-purple-700 border-purple-200',
-    primary: '#8b5cf6',
-    secondary: '#6d28d9',
-    gradient: 'from-purple-100/50 to-indigo-100/50',
-    shadowColor: 'rgba(139, 92, 246, 0.2)'
-  },
-  'Filosofia': { 
-    emoji: '💭', 
-    cardBg: 'bg-slate-50/70', 
-    tagColor: 'bg-slate-100 text-slate-700 border-slate-200',
-    primary: '#64748b',
-    secondary: '#334155',
-    gradient: 'from-slate-100/50 to-gray-100/50',
-    shadowColor: 'rgba(100, 116, 139, 0.2)'
-  },
-  'Sociologia': { 
-    emoji: '👥', 
-    cardBg: 'bg-zinc-50/70', 
-    tagColor: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-    primary: '#71717a',
-    secondary: '#3f3f46',
-    gradient: 'from-zinc-100/50 to-neutral-100/50',
-    shadowColor: 'rgba(113, 113, 122, 0.2)'
-  },
-  'Redação': { 
-    emoji: '✍️', 
-    cardBg: 'bg-rose-50/70', 
-    tagColor: 'bg-rose-100 text-rose-700 border-rose-200',
-    primary: '#f43f5e',
-    secondary: '#be123c',
-    gradient: 'from-rose-100/50 to-pink-100/50',
-    shadowColor: 'rgba(244, 63, 94, 0.2)'
-  },
-  'Geral': { 
-    emoji: '📌', 
-    cardBg: 'bg-gray-50/70', 
-    tagColor: 'bg-gray-100 text-gray-700 border-gray-200',
-    primary: '#6b7280',
-    secondary: '#374151',
-    gradient: 'from-gray-100/50 to-slate-100/50',
-    shadowColor: 'rgba(107, 114, 128, 0.1)'
-  }
-};
-const SUBJECTS = Object.keys(SUBJECT_INFO);
+// SUBJECT_INFO moved to src/constants/subjects.ts
 
 const TABS = [
   { id: 'hoje', label: 'Hoje', icon: CalendarDays, color: 'text-pastel-peach' },
@@ -3480,7 +3569,7 @@ function AppContent({
   progressHoje, hojeCount, concluidaHojeCount, openCreateModal, openEditModal,
   isModalOpen, setIsModalOpen, taskToEdit, user, globalExpanded, toggleGlobalExpanded
 }: any) {
-  const { activeTask, setActiveTask, view: focusView, setView: setFocusView } = useFocus();
+  const { activeTask, setActiveTask, session, view: focusView, setView: setFocusView } = useFocus();
   const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
 
   return (
@@ -3527,15 +3616,36 @@ function AppContent({
            
            <div className="w-px h-10 bg-black/5" />
            
-           <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 opacity-60">Tempo Real</span>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                <span className="text-sm font-black text-emerald-600">
-                  {Math.floor(tasks.reduce((acc, t) => acc + (t.liquidTime || 0), 0) / 60)} <span className="text-[10px] font-bold opacity-70">MIN</span>
-                </span>
-              </div>
-           </div>
+           {activeTask ? (
+             <div className="flex flex-col">
+               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 opacity-60">
+                 Sessão Ativa
+               </span>
+               <div className="flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse shadow-[0_0_8px_rgba(249,115,22,0.6)]" />
+                 <span className="text-sm font-black text-orange-600 tabular-nums">
+                   {Math.floor((session?.sessionLiquidTime || 0) / 60)}
+                   <span className="text-[10px] font-bold opacity-70 ml-1">MIN</span>
+                 </span>
+                 <span className="text-[10px] text-gray-400 font-bold truncate max-w-[100px]">
+                   {activeTask.title}
+                 </span>
+               </div>
+             </div>
+           ) : (
+             <div className="flex flex-col">
+               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 opacity-60">
+                 Tempo Real
+               </span>
+               <div className="flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                 <span className="text-sm font-black text-emerald-600">
+                   {Math.floor(tasks.reduce((acc: any, t: any) => acc + (t.liquidTime || 0), 0) / 60)}
+                   <span className="text-[10px] font-bold opacity-70 ml-1">MIN</span>
+                 </span>
+               </div>
+             </div>
+           )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -3650,7 +3760,7 @@ function AppContent({
               className="h-full"
             >
               {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} />}
-              {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} subjectInfo={SUBJECT_INFO} />}
+              {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
               {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
               {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} />}
             </motion.div>
@@ -4514,14 +4624,17 @@ function HojeTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => voi
 }
 
 function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
-  const [isGrouped, setIsGrouped] = React.useState(() => {
-    return localStorage.getItem('eduflow_inbox_grouped') !== 'false';
-  });
+  const [isGrouped, setIsGrouped] = React.useState(() => localStorage.getItem('eduflow_inbox_grouped') !== 'false');
+  const [search, setSearch] = React.useState('');
 
   React.useEffect(() => {
     localStorage.setItem('eduflow_inbox_grouped', String(isGrouped));
   }, [isGrouped]);
-  const inboxTasks = tasks.filter(t => t.status === 'inbox');
+
+  const inboxTasks = tasks.filter(t => 
+    t.status === 'inbox' && 
+    (!search || t.title.toLowerCase().includes(search.toLowerCase()))
+  );
   
   // Group tasks by subject
   const groupedTasks = React.useMemo(() => {
@@ -4534,85 +4647,103 @@ function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => vo
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [inboxTasks]);
 
-  if (inboxTasks.length === 0) {
-    return (
-      <div className="mt-12 flex min-h-[40dvh] flex-col items-center justify-center px-4 text-center sm:mt-20">
-        <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
-          <Inbox size={40} className="text-gray-200" />
-        </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Inbox Limpo!</h3>
-        <p className="text-gray-500 text-sm max-w-xs">Sua caixa de entrada está vazia. Capture novas ideias ou tarefas pendentes aqui.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col max-w-2xl mx-auto w-full px-1 pb-20">
-      {/* Inbox Header / Stats */}
-      <div className="mb-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-3 tracking-tight">
-              <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
-              CENTRO DE TRIAGEM
-            </h2>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-[1.125rem]">
-              {inboxTasks.length} {inboxTasks.length === 1 ? 'item pendente' : 'itens pendentes'}
-            </p>
-          </div>
-          <button 
-            onClick={() => setIsGrouped(!isGrouped)}
-            className="flex items-center gap-3 px-4 py-2 rounded-xl border border-gray-100 bg-white text-[10px] font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm uppercase tracking-widest active:scale-95"
-          >
-            {isGrouped ? <LayoutList size={14} /> : <Grid size={14} />}
-            {isGrouped ? 'Lista' : 'Agrupar'}
+      {/* Search Bar - Integration from Refinement 8 */}
+      <div className="relative mb-6">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
+        <input
+          type="text"
+          placeholder="Filtrar inbox..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-100 rounded-2xl text-sm font-medium text-gray-900 placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm transition-all"
+        />
+        {search && (
+          <button onClick={() => setSearch('')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-600 transition-colors">
+            <X size={14} />
           </button>
+        )}
+      </div>
+
+      {inboxTasks.length === 0 ? (
+        <div className="mt-12 flex min-h-[40dvh] flex-col items-center justify-center px-4 text-center sm:mt-20">
+          <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
+            <Inbox size={40} className="text-gray-200" />
+          </div>
+          <h3 className="text-xl font-bold text-gray-900 mb-2">Inbox Limpo!</h3>
+          <p className="text-gray-500 text-sm max-w-xs">{search ? 'Nenhuma tarefa encontrada para esta busca.' : 'Sua caixa de entrada está vazia. Capture novas ideias ou tarefas pendentes aqui.'}</p>
         </div>
-
-        {isGrouped && (
-          <div className="flex flex-wrap gap-2 py-1">
-            {groupedTasks.map(([subject, items]) => {
-              const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
-              return (
-                <div key={subject} className={cn("px-3 py-1.5 rounded-xl border text-[10px] font-bold flex items-center gap-2 shadow-sm", info.tagColor)}>
-                  <span>{info.emoji}</span>
-                  {subject.toUpperCase()}
-                  <span className="opacity-40 ml-0.5">{items.length}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Main List */}
-      <div className="space-y-8">
-        {isGrouped ? (
-          groupedTasks.map(([subject, items]) => {
-            const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
-            return (
-              <div key={subject} className="space-y-4">
-                <div className="flex items-center gap-4 px-2">
-                  <div className={cn("w-1 h-3 rounded-full", info.tagColor.split(' ')[1])} />
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{subject}</h3>
-                  <div className="flex-1 h-[1px] bg-gray-100" />
-                </div>
-                <div className="space-y-3">
-                  {items.map(task => (
-                    <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-                  ))}
-                </div>
+      ) : (
+        <>
+          {/* Inbox Header / Stats */}
+          <div className="mb-8 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <h2 className="text-sm font-bold text-gray-900 flex items-center gap-3 tracking-tight">
+                  <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                  CENTRO DE TRIAGEM
+                </h2>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-[1.125rem]">
+                  {inboxTasks.length} {inboxTasks.length === 1 ? 'item pendente' : 'itens pendentes'}
+                </p>
               </div>
-            );
-          })
-        ) : (
-          <div className="space-y-3">
-            {inboxTasks.map(task => (
-              <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-            ))}
+              <button 
+                onClick={() => setIsGrouped(!isGrouped)}
+                className="flex items-center gap-3 px-4 py-2 rounded-xl border border-gray-100 bg-white text-[10px] font-bold text-gray-500 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm uppercase tracking-widest active:scale-95"
+              >
+                {isGrouped ? <LayoutList size={14} /> : <Grid size={14} />}
+                {isGrouped ? 'Lista' : 'Agrupar'}
+              </button>
+            </div>
+
+            {isGrouped && (
+              <div className="flex flex-wrap gap-2 py-1">
+                {groupedTasks.map(([subject, items]) => {
+                  const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
+                  return (
+                    <div key={subject} className={cn("px-3 py-1.5 rounded-xl border text-[10px] font-bold flex items-center gap-2 shadow-sm", info.tagColor)}>
+                      <span>{info.emoji}</span>
+                      {subject.toUpperCase()}
+                      <span className="opacity-40 ml-0.5">{items.length}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Main List */}
+          <div className="space-y-8">
+            {isGrouped ? (
+              groupedTasks.map(([subject, items]) => {
+                const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
+                return (
+                  <div key={subject} className="space-y-4">
+                    <div className="flex items-center gap-4 px-2">
+                      <div className={cn("w-1 h-3 rounded-full", info.tagColor.split(' ')[1])} />
+                      <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{subject}</h3>
+                      <div className="flex-1 h-[1px] bg-gray-100" />
+                    </div>
+                    <div className="space-y-3">
+                      {items.map(task => (
+                        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="space-y-3">
+                {inboxTasks.map(task => (
+                  <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -4900,27 +5031,33 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
         </button>
       </div>
 
-      {/* --- PROGRESS BAR: REFACTORED ALIGNMENT --- */}
+      {/* --- PROGRESS BAR: ANIMATED WITH SPRING --- */}
       {checklistPct >= 0 && (
         <div className="relative z-10 pt-1">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">Progresso Checklist</span>
-            <span className="text-[10px] font-bold text-gray-900 px-1.5 py-0.5 bg-gray-50 rounded-md border border-gray-100">
-              {doneSubItems} / {totalSubItems}
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">
+              Progresso
             </span>
-          </div>
-          <div className="h-1.5 w-full rounded-full bg-gray-50 overflow-hidden border border-gray-100">
-            <div 
-              className={cn(
-                "h-full rounded-full transition-all duration-1000 ease-in-out relative",
-                checklistPct === 100 ? "bg-emerald-500 shadow-sm" : 
-                checklistPct >= 50 ? "bg-indigo-500 shadow-sm" : 
-                "bg-orange-500 shadow-sm"
-              )}
-              style={{ width: `${checklistPct}%` }}
+            <motion.span
+              key={checklistPct} // re-anima quando muda
+              initial={{ scale: 1.4, opacity: 0 }}
+              animate={{ scale: 1,   opacity: 1 }}
+              className="text-[10px] font-bold text-gray-900 px-1.5 py-0.5 bg-gray-50 rounded-md border border-gray-100 tabular-nums"
             >
-              <div className="absolute inset-0 bg-white/20 animate-pulse" />
-            </div>
+              {doneSubItems} / {totalSubItems}
+            </motion.span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-gray-50 overflow-hidden border border-gray-100 shadow-inner">
+            <motion.div
+              className={cn(
+                "h-full rounded-full",
+                checklistPct === 100 ? "bg-emerald-500" :
+                checklistPct >= 50  ? "bg-indigo-500"  : "bg-orange-500"
+              )}
+              initial={{ width: 0 }}
+              animate={{ width: `${checklistPct}%` }}
+              transition={{ type: 'spring', stiffness: 60, damping: 14, delay: 0.1 }}
+            />
           </div>
         </div>
       )}
