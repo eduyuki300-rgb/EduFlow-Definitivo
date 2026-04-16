@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'motion/react';
-import { GripVertical, Maximize2, Pause, Play, Square, X } from 'lucide-react';
-import { Task } from '../types';
-import type { FocusSessionApi } from '../hooks/useFocusSession';
+import { motion, AnimatePresence } from 'motion/react';
+import { GripVertical, Maximize2, Pause, Play, Square, X, Timer, PictureInPicture2 } from 'lucide-react';
+import { useFocus } from '../context/FocusContext';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -16,138 +15,148 @@ function formatTime(seconds: number) {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-interface FocusMiniPlayerProps {
-  key?: string | number;
-  task: Task;
-  session: FocusSessionApi;
-  onExpand: () => void;
-  onClose: () => void;
-}
-
-export function FocusMiniPlayer({ task, session, onExpand, onClose }: FocusMiniPlayerProps) {
-  const { mode, status, timeLeft, timeElapsed, toggleTimer, focusDuration, breakDuration } = session;
-  const displaySeconds = mode === 'pomodoro' ? timeLeft : timeElapsed;
-
-  // Read persisted accent color
-  const accentHex = (() => { try { const id = localStorage.getItem('eduflow_accent') ?? 'white'; const colors: Record<string, string> = { white: '#ffffff', blue: '#60a5fa', purple: '#a78bfa', emerald: '#34d399', rose: '#fb7185', amber: '#fbbf24', cyan: '#22d3ee' }; return colors[id] ?? '#ffffff'; } catch { return '#ffffff'; } })();
-
+export function FocusMiniPlayer() {
+  const { activeTask, session, setView, setActiveTask } = useFocus();
+  
   const [pos, setPos] = useState(() => {
-    try { const raw = localStorage.getItem(STORAGE_KEY); if (!raw) return { x: 0, y: 0 }; const p = JSON.parse(raw); return { x: p.x ?? 0, y: p.y ?? 0 }; } catch { return { x: 0, y: 0 }; }
+    try { 
+      const raw = localStorage.getItem(STORAGE_KEY); 
+      if (!raw) return { x: 0, y: 0 }; // Using offsets from default bottom-left
+      return JSON.parse(raw); 
+    } catch { 
+      return { x: 24, y: window.innerHeight - 150 }; 
+    }
   });
 
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
+  useEffect(() => { 
+    try { 
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pos)); 
+    } catch {} 
+  }, [pos]);
 
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(pos)); } catch {} }, [pos]);
+  if (!session) return null;
 
-  const onPointerDownDrag = useCallback((e: React.PointerEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: pos.x, origY: pos.y };
-  }, [pos.x, pos.y]);
+  const { 
+    mode, status, timeLeft, timeElapsed, toggleTimer, focusDuration, 
+    breakDuration, discardSessionTime 
+  } = session;
+  
+  const displaySeconds = mode === 'pomodoro' ? timeLeft : timeElapsed;
+  const isFocusMode = mode === 'pomodoro' && (status === 'running' || status === 'paused' || status === 'idle' || status === 'finished');
+  const isBreakMode = mode === 'pomodoro' && (status === 'break' || status === 'break-paused');
 
-  const onPointerMoveDrag = useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current; if (!d) return;
-    setPos({ x: d.origX + e.clientX - d.startX, y: d.origY + e.clientY - d.startY });
-  }, []);
-
-  const onPointerUpDrag = useCallback((e: React.PointerEvent) => {
-    dragRef.current = null;
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
-  }, []);
-
-  const requestClose = () => {
+  const handleClose = () => {
     if (status === 'running' || status === 'paused' || status === 'break' || status === 'break-paused') {
       const save = window.confirm('Encerrar sessão de foco?\n\nOK: Salvar progresso até agora\nCancelar: Descartar progresso desta sessão');
       if (save) {
-        onClose(); 
+        setView('widget');
       } else {
-        session.discardSessionTime();
-        onClose(); 
+        discardSessionTime();
+        setView('widget');
       }
     } else {
-      onClose();
+      setView('widget');
     }
   };
 
-  const label = status === 'idle' ? 'Pronto' : status === 'paused' ? 'Pausado' : status === 'break' || status === 'break-paused' ? 'Pausa' : status === 'finished' ? 'Concluído' : mode === 'pomodoro' ? 'Foco' : 'Cronômetro';
+  const statusLabel = 
+    status === 'idle' ? 'Pronto' : 
+    status === 'paused' ? 'Pausado' : 
+    isBreakMode ? 'Pausa' : 
+    status === 'finished' ? 'Concluído' : 
+    'Foco';
 
-  // Mini ring progress
-  const radius = 17;
+  // Progress logic for mini ring
+  const radius = 18;
   const circumference = 2 * Math.PI * radius;
-  const total = mode === 'pomodoro' ? (status === 'break' || status === 'break-paused' ? breakDuration : focusDuration) : 1;
-  const ratio = total > 0 ? displaySeconds / total : 0;
-  const offset = circumference * (1 - (mode === 'pomodoro' ? ratio : 0));
+  const total = mode === 'pomodoro' ? (isBreakMode ? breakDuration : focusDuration) : 1;
+  const progress = mode === 'pomodoro' ? (1 - (displaySeconds / total)) : 0;
+  const offset = circumference * (1 - progress);
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+      initial={{ opacity: 0, y: 20, scale: 0.9 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       drag
       dragMomentum={false}
       dragElastic={0.05}
-      dragConstraints={{ 
-        top: 12, 
-        left: 12, 
-        right: (typeof window !== 'undefined' ? window.innerWidth : 1000) - 332, 
-        bottom: (typeof window !== 'undefined' ? window.innerHeight : 1000) - 100 
-      }}
       onDragEnd={(_, info) => {
-        setPos({ x: info.point.x, y: info.point.y });
+        setPos(prev => ({ 
+          x: prev.x + info.offset.x, 
+          y: prev.y + info.offset.y 
+        }));
       }}
-      className="fixed z-[95] w-[20rem] cursor-grab active:cursor-grabbing"
-      style={{ left: pos.x || 24, top: pos.y || (window.innerHeight - 180) }}
+      className="fixed bottom-32 left-8 z-[100] w-[18rem] cursor-grab active:cursor-grabbing"
+      style={{ x: pos.x, y: pos.y }}
     >
-      <div className="flex items-stretch overflow-hidden rounded-2xl border border-gray-200/90 bg-white/95 shadow-[0_12px_40px_rgba(0,0,0,0.15)] backdrop-blur-md p-3">
-        <div className="flex items-center px-1.5 text-gray-300" aria-hidden>
-          <GripVertical size={16} />
+      <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_20px_40px_rgba(0,0,0,0.12)] border border-gray-100 p-4 flex items-center gap-4">
+        {/* Progress Ring and Play/Pause */}
+        <div className="relative shrink-0">
+          <svg className="w-14 h-14 -rotate-90">
+            <circle cx="28" cy="28" r="24" stroke="#f1f5f9" strokeWidth="4" fill="transparent" />
+            <motion.circle
+              cx="28" cy="28" r="24"
+              stroke={isBreakMode ? '#3b82f6' : '#f97316'}
+              strokeWidth="4" fill="transparent"
+              strokeDasharray={2 * Math.PI * 24}
+              initial={{ strokeDashoffset: 2 * Math.PI * 24 }}
+              animate={{ strokeDashoffset: (1 - progress) * (2 * Math.PI * 24) }}
+              transition={{ duration: 1, ease: "linear" }}
+              strokeLinecap="round"
+            />
+          </svg>
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleTimer(); }}
+            className={cn(
+              "absolute inset-0 flex items-center justify-center transition-all hover:scale-110 active:scale-90",
+              isBreakMode ? "text-blue-500" : "text-orange-500"
+            )}
+          >
+            {status === 'running' || status === 'break' 
+              ? <Pause size={16} fill="currentColor" /> 
+              : <Play size={16} fill="currentColor" className="ml-1" />}
+          </button>
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col justify-center py-2.5 pr-3.5 pl-1.5">
-          <div className="flex min-w-0 items-center justify-between gap-2 mb-1">
-            <p className="truncate text-xs font-bold text-text-main" title={task.title}>{task.title}</p>
-            <span className="shrink-0 text-[8px] font-black uppercase tracking-wider text-text-muted bg-gray-100/80 border border-gray-200/50 px-1.5 py-0.5 rounded-md">{label}</span>
-          </div>
-          
-          <div className="flex items-center justify-between gap-3">
-            <span className="font-mono text-3xl font-black tabular-nums tracking-tighter text-text-main leading-none">
-              {formatTime(displaySeconds)}
-            </span>
-            
-            <div className="flex items-center gap-1">
-              {/* Play/Pause Button with Progress Ring */}
-              <div className="relative group/play">
-                <svg viewBox="0 0 40 40" className="w-11 h-11 -rotate-90">
-                  <circle cx="20" cy="20" r={radius} stroke="#f1f5f9" strokeWidth="2.5" fill="none" />
-                  <circle cx="20" cy="20" r={radius} stroke={accentHex === '#ffffff' ? '#1e293b' : accentHex}
-                    strokeWidth="2.5" fill="none" strokeLinecap="round"
-                    strokeDasharray={circumference} strokeDashoffset={offset}
-                    style={{ transition: 'stroke-dashoffset 0.95s linear' }} />
-                </svg>
-                <button type="button" onClick={(e) => { e.stopPropagation(); toggleTimer(); }}
-                  disabled={status === 'finished'}
-                  className="absolute inset-0 flex items-center justify-center text-text-main hover:scale-110 active:scale-95 transition-transform disabled:opacity-40"
-                  aria-label={status === 'running' || status === 'break' ? 'Pausar' : 'Iniciar'}>
-                  {status === 'running' || status === 'break'
-                    ? <Pause size={14} fill="currentColor" />
-                    : <Play size={14} fill="currentColor" className="ml-0.5" />}
-                </button>
-              </div>
-
-              <div className="flex items-center bg-gray-50 rounded-full px-1 border border-gray-100">
-                <button type="button" onClick={(e) => { e.stopPropagation(); onExpand(); }}
-                  className="w-9 h-9 flex items-center justify-center text-text-muted transition-colors hover:text-text-main active:scale-90" 
-                  title="Expandir">
-                  <Maximize2 size={16} />
-                </button>
-                <button type="button" onClick={(e) => { e.stopPropagation(); requestClose(); }}
-                  className="w-9 h-9 flex items-center justify-center text-text-muted transition-colors hover:text-red-500 active:scale-90" 
-                  title="Encerrar">
-                  <X size={18} />
-                </button>
-              </div>
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate">
+              {statusLabel}
+            </h4>
+            <div className="flex gap-1">
+               <button onClick={handleClose} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+                <X size={14} />
+              </button>
             </div>
           </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black tabular-nums tracking-tighter text-gray-900">
+              {formatTime(displaySeconds)}
+            </span>
+            <p className="text-[10px] font-bold text-gray-400 truncate max-w-[80px]">
+              {activeTask?.title || 'Foco Livre'}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Toggle */}
+        <div className="flex flex-col gap-1 border-l border-gray-100 pl-3 ml-2">
+          <button 
+            onClick={() => setView('full')}
+            className="p-1.5 text-gray-300 hover:text-gray-900 transition-colors hover:bg-gray-50 rounded-lg"
+            title="Modo Imersivo"
+          >
+            <Maximize2 size={14} />
+          </button>
+          <button 
+            onClick={() => setView('widget')}
+            className="p-1.5 text-gray-300 hover:text-gray-900 transition-colors hover:bg-gray-50 rounded-lg"
+            title="Restaurar Widget"
+          >
+            <PictureInPicture2 size={14} />
+          </button>
         </div>
       </div>
     </motion.div>

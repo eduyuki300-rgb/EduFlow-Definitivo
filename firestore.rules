@@ -15,20 +15,18 @@ service cloud.firestore {
     }
 
     function isValidTask(data) {
+      // Campos obrigatórios básicos
       return data.keys().hasAll(['title', 'subject', 'priority', 'status', 'userId', 'createdAt']) &&
-             isValidString('title', 1, 150) &&
-             isValidString('subject', 1, 50) &&
-             data.priority in ['baixa', 'media', 'alta'] &&
-             data.status in ['inbox', 'hoje', 'semana', 'concluida'] &&
+             isValidString('title', 1, 300) &&
+             isValidString('subject', 1, 100) &&
+             // Flexibilidade para prioridades e status
              data.userId == request.auth.uid &&
              data.createdAt is timestamp &&
+             // Validação de tipos para campos opcionais (apenas se presentes)
              (!('subtasks' in data) || data.subtasks is list) &&
-             (!('questionsTotal' in data) || data.questionsTotal is number) &&
-             (!('questionsCorrect' in data) || data.questionsCorrect is number) &&
-             (!('theoryCompleted' in data) || data.theoryCompleted is bool) &&
-             (!('flashcardsCompleted' in data) || data.flashcardsCompleted is bool) &&
-             (!('difficulty' in data) || data.difficulty is number) &&
-             (!('notes' in data) || data.notes is string);
+             (!('notes' in data) || data.notes is string) &&
+             (!('pomodoros' in data) || data.pomodoros is number) &&
+             (!('liquidTime' in data) || data.liquidTime is number);
     }
 
     match /tasks/{taskId} {

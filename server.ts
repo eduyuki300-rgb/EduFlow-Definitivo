@@ -21,6 +21,37 @@ async function startServer() {
   // Gemini AI Route
   app.post("/api/gemini", async (req, res) => {
     try {
+      const authHeader = req.headers.authorization;
+      
+      // Validação básica do cabeçalho
+      if (!authHeader || !authHeader.startsWith('Bearer ') || authHeader.length < 10) {
+        return res.status(401).json({ error: "Não autorizado. Cabeçalho de autenticação ausente ou inválido." });
+      }
+
+      const idToken = authHeader.split('Bearer ')[1];
+      const fbApiKey = process.env.VITE_FIREBASE_API_KEY;
+
+      if (!fbApiKey) {
+        console.error("ERRO: VITE_FIREBASE_API_KEY não configurada no servidor.");
+        return res.status(500).json({ error: "Configuração do servidor incompleta (API Key do Firebase)." });
+      }
+
+      // Verifica o token usando a API do Google Identity (Firebase Auth)
+      const verifyResponse = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${fbApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken })
+      }).catch(err => {
+        console.error("Erro ao conectar com Google Identity API:", err);
+        return null;
+      });
+
+      if (!verifyResponse || !verifyResponse.ok) {
+        const errorText = verifyResponse ? await verifyResponse.text() : "Conexão falhou";
+        console.warn("Falha na verificação do token:", errorText);
+        return res.status(403).json({ error: "Sessão inválida ou expirada. Por favor, faça login novamente." });
+      }
+
       const { contents } = req.body;
       
       // Tenta usar a chave customizada primeiro, depois a padrão
