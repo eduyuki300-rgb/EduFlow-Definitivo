@@ -316,7 +316,15 @@ function AppContent({
 
            <div className="w-[1px] h-8 bg-black/5 mx-1" />
            
-           <button onClick={() => logout()} className="p-3 text-gray-400 hover:text-rose-500 transition-all rounded-2xl hover:bg-rose-50 group">
+           <button 
+             onClick={() => {
+               if (window.confirm('Deseja realmente sair do EduFlow?')) {
+                 logout();
+               }
+             }} 
+             className="p-3 text-gray-400 hover:text-rose-500 transition-all rounded-2xl hover:bg-rose-50 group"
+             title="Sair"
+           >
              <LogOut size={22} className="group-hover:-translate-x-1 transition-transform" />
            </button>
         </div>
@@ -418,15 +426,13 @@ function AppContent({
       />
 
       <AnimatePresence>
-        {activeTask && (
+        {activeTask && focusView === 'full' && (
           <FocusMode 
             key={activeTask.id}
-            task={activeTask} 
-            view={focusView === 'widget' ? 'full' : focusView === 'mini' ? 'minimized' : 'full'}
-            onViewChange={(v) => setFocusView(v === 'minimized' ? 'mini' : 'full')}
-            onClose={() => setActiveTask(null)}
-            playSuccessSound={playSuccessSound}
           />
+        )}
+        {activeTask && focusView === 'mini' && (
+          <FocusMiniPlayer key={`mini-${activeTask.id}`} />
         )}
       </AnimatePresence>
     </div>

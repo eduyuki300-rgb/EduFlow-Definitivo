@@ -20,6 +20,7 @@ interface PomodoroWidgetProps {
 export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [showNotification, setShowNotification] = useState<{ type: 'focus' | 'break', active: boolean }>({ type: 'focus', active: false });
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -32,11 +33,11 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
     mode, setMode, status, timeLeft, timeElapsed, focusDuration, setFocusDuration,
     breakDuration, setBreakDuration, longBreakDuration, setLongBreakDuration,
     isStrictMode, setIsStrictMode, toggleTimer, resetTimer, skipToComplete,
-    startBreak, focusCycles
+    startBreak, focusCycles, closeAfterPersist
   } = session;
 
   const isRunning = status === 'running' || status === 'break';
-  const isFocusMode = mode === 'pomodoro' && (status === 'running' || status === 'paused' || status === 'idle' || status === 'finished');
+  const isFocusMode = mode === 'pomodoro' && (status === 'running' || status === 'paused' || status === 'idle' || status === 'completed');
   const isBreakMode = mode === 'pomodoro' && (status === 'break' || status === 'break-paused');
 
   // Alarm Sound Effect
@@ -46,13 +47,17 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
 
   // Monitor status to trigger notifications
   useEffect(() => {
-    if (status === 'finished') {
-      audioRef.current?.play().catch(e => console.log('Audio wait for interaction', e));
+    if (status === 'completed') {
+      // Use standard audio play or browser notification if available
+      try {
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+        audio.play().catch(e => console.log('Audio notification postponed for interaction', e));
+      } catch (err) {
+        console.error('Failed to play audio:', err);
+      }
       setShowNotification({ type: 'focus', active: true });
-    } else if (status === 'idle' && (timeLeft === focusDuration)) {
-       // This could be end of break or reset
     }
-  }, [status, timeLeft, focusDuration]);
+  }, [status]);
 
   const activeTasks = tasks.filter(t => t.status !== 'concluida');
 
@@ -180,7 +185,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                     "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest mt-2 border",
                     isFocusMode ? "bg-orange-50 text-orange-600 border-orange-100" : "bg-blue-50 text-blue-600 border-blue-100"
                   )}>
-                    {status === 'running' ? 'Ativo' : status === 'paused' ? 'Pausado' : status === 'break' ? 'Destaque' : status === 'finished' ? 'Concluído' : 'Pronto'}
+                    {status === 'running' ? 'Ativo' : status === 'paused' ? 'Pausado' : status === 'break' ? 'Destaque' : status === 'completed' ? 'Concluído' : 'Pronto'}
                   </div>
                 </div>
               </div>
@@ -221,6 +226,14 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
 
             {/* Controls */}
             <div className="flex items-center justify-center gap-4 relative z-10">
+              <button 
+                onClick={() => setShowStopConfirm(true)}
+                className="p-4 rounded-2xl bg-gray-50 text-gray-300 hover:text-red-500 transition-all active:scale-95 border border-gray-100"
+                title="Encerrar"
+              >
+                <Square size={18} />
+              </button>
+
               <button 
                 onClick={resetTimer}
                 className="p-4 rounded-2xl bg-gray-50 text-gray-300 hover:text-gray-900 transition-all active:scale-95 border border-gray-100"
@@ -294,6 +307,54 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                         )} />
                       </button>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Stop Confirmation Overlay */}
+            <AnimatePresence>
+              {showStopConfirm && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  className="absolute inset-0 z-[60] bg-white/95 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center"
+                >
+                  <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center mb-4 border border-orange-100 text-orange-500">
+                    <Square size={20} />
+                  </div>
+                  <h3 className="text-sm font-black text-gray-900 mb-1">Encerrar Sessão?</h3>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mb-6 leading-relaxed">
+                    Seu progresso será salvo e computado.
+                  </p>
+                  <div className="flex flex-col gap-2 w-full">
+                    <button 
+                      onClick={() => {
+                        closeAfterPersist(true);
+                        setShowStopConfirm(false);
+                        setIsExpanded(false);
+                      }}
+                      className="w-full bg-gray-900 text-white text-[10px] font-black py-3 rounded-xl hover:bg-black transition-all uppercase tracking-widest"
+                    >
+                      Salvar e Sair
+                    </button>
+                    <button 
+                      onClick={() => {
+                        closeAfterPersist(false);
+                        setShowStopConfirm(false);
+                        setIsExpanded(false);
+                      }}
+                      className="w-full text-red-500 text-[10px] font-black py-2 rounded-xl hover:bg-red-50 transition-all uppercase tracking-widest"
+                    >
+                      Descartar
+                    </button>
+                    <button 
+                      onClick={() => setShowStopConfirm(false)}
+                      className="w-full text-gray-400 text-[10px] font-black py-2 rounded-xl hover:bg-gray-50 transition-all uppercase tracking-widest"
+                    >
+                      Cancelar
+                    </button>
                   </div>
                 </motion.div>
               )}

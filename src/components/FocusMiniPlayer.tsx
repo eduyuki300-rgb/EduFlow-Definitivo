@@ -42,7 +42,7 @@ export function FocusMiniPlayer() {
   } = session;
   
   const displaySeconds = mode === 'pomodoro' ? timeLeft : timeElapsed;
-  const isFocusMode = mode === 'pomodoro' && (status === 'running' || status === 'paused' || status === 'idle' || status === 'finished');
+  const isFocusMode = mode === 'pomodoro' && (status === 'running' || status === 'paused' || status === 'idle' || status === 'completed');
   const isBreakMode = mode === 'pomodoro' && (status === 'break' || status === 'break-paused');
 
   const handleClose = () => {
@@ -63,7 +63,7 @@ export function FocusMiniPlayer() {
     status === 'idle' ? 'Pronto' : 
     status === 'paused' ? 'Pausado' : 
     isBreakMode ? 'Pausa' : 
-    status === 'finished' ? 'Concluído' : 
+    status === 'completed' ? 'Concluído' : 
     'Foco';
 
   // Progress logic for mini ring
@@ -126,7 +126,19 @@ export function FocusMiniPlayer() {
               {statusLabel}
             </h4>
             <div className="flex gap-1">
-               <button onClick={handleClose} className="p-1 text-gray-300 hover:text-red-500 transition-colors">
+              <button 
+                onClick={() => {
+                  const save = window.confirm('Encerrar sessão e salvar progresso?');
+                  if (save) {
+                    session.closeAfterPersist();
+                  }
+                }} 
+                className="p-1 text-gray-300 hover:text-red-500 transition-colors"
+                title="Parar e Salvar"
+              >
+                <Square size={14} />
+              </button>
+              <button onClick={handleClose} className="p-1 text-gray-300 hover:text-red-500 transition-colors" title="Fechar">
                 <X size={14} />
               </button>
             </div>

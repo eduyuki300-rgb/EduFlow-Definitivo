@@ -235,8 +235,9 @@ function FocusModeFull() {
 
   const { 
     mode, setMode, status, focusDuration, setFocusDuration, breakDuration, setBreakDuration,
-    longBreakDuration, setLongBreakDuration, focusCycles, isStrictMode, setIsStrictMode,
-    timeLeft, timeElapsed, toggleTimer: sessionToggleTimer, resetTimer, skipToComplete, discardSessionTime, startBreak 
+    longBreakDuration, setLongBreakDuration, timeLeft, timeElapsed, focusCycles, isStrictMode, setIsStrictMode,
+    pageTitle, formatTime: sessionFormatTime, progress: sessionProgress,
+    toggleTimer: sessionToggleTimer, resetTimer, skipToComplete, discardSessionTime, startBreak, closeAfterPersist 
   } = session;
 
   const [showSettings, setShowSettings] = useState(false);
@@ -252,17 +253,11 @@ function FocusModeFull() {
     audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
   }, []);
 
-  // Watch for transitions
+  // Update Title via hook's pageTitle
   useEffect(() => {
-    if (status === 'finished') {
-      audioRef.current?.play().catch(() => {});
-      setShowNotification({ type: 'focus', active: true });
-    } else if (status === 'idle' && statusRef.current === 'break') {
-      audioRef.current?.play().catch(() => {});
-      setShowNotification({ type: 'break', active: true });
-    }
-    statusRef.current = status;
-  }, [status]);
+    if (pageTitle) document.title = pageTitle;
+    return () => { document.title = 'EduFlow'; };
+  }, [pageTitle]);
   
   // Customization state
   const [scene, setScene] = useState(SCENES[0]);
@@ -312,23 +307,24 @@ function FocusModeFull() {
     }
   };
 
-  const confirmClose = (save: boolean) => {
-    if (!save) discardSessionTime();
+  const confirmClose = async (save: boolean) => {
+    if (save) {
+      await closeAfterPersist();
+    } else {
+      discardSessionTime();
+    }
     setShowStopConfirm(false);
     setView('widget');
     setActiveTask(null);
   };
 
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return sessionFormatTime(seconds);
   };
 
-  const displaySeconds = mode === 'pomodoro' ? timeLeft : timeElapsed;
+  const displaySeconds = timeLeft;
   const isBreakMode = mode === 'pomodoro' && (status === 'break' || status === 'break-paused');
-  const currentDuration = isBreakMode ? (focusCycles % 4 === 0 && focusCycles > 0 ? longBreakDuration : breakDuration) : focusDuration;
-  const progress = mode === 'pomodoro' ? (1 - (displaySeconds / currentDuration)) : 0;
+  const progress = isBreakMode ? (1 - (timeLeft / (focusCycles % 4 === 0 && focusCycles > 0 ? longBreakDuration : breakDuration))) : sessionProgress / 100;
 
   return (
     <motion.div
@@ -407,7 +403,7 @@ function FocusModeFull() {
                 "px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-[0.3em] mt-8 border shadow-sm",
                 isBreakMode ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-orange-50 text-orange-600 border-orange-100"
               )}>
-                {status === 'running' ? 'Foco Profundo' : status === 'break' ? 'Recuperação' : status === 'paused' ? 'Pausado' : status === 'finished' ? 'Concluído' : 'Pronto'}
+                {status === 'running' ? (mode === 'flowtime' ? 'Flow Ativo' : 'Foco Profundo') : status === 'break' ? 'Recuperação' : status === 'paused' ? 'Pausado' : status === 'completed' ? 'Concluído' : 'Pronto'}
               </div>
             </div>
           </div>
@@ -455,7 +451,15 @@ function FocusModeFull() {
 
         {/* Controls */}
         <div className="flex items-center gap-8">
-          <button onClick={resetTimer} className="p-6 bg-white/20 hover:bg-white/40 rounded-[2rem] transition-all text-gray-900 active:scale-90 border border-white/20">
+          <button 
+            onClick={() => setShowStopConfirm(true)} 
+            className="p-6 bg-white/20 hover:bg-white/40 rounded-[2rem] transition-all text-gray-900 active:scale-90 border border-white/20"
+            title="Encerrar Sessão"
+          >
+            <Square size={28} />
+          </button>
+
+          <button onClick={resetTimer} className="p-6 bg-white/20 hover:bg-white/40 rounded-[2rem] transition-all text-gray-900 active:scale-90 border border-white/20" title="Reiniciar">
             <RotateCcw size={28} />
           </button>
           
@@ -463,7 +467,7 @@ function FocusModeFull() {
             {status === 'running' || status === 'break' ? <Pause size={48} fill="currentColor" /> : <Play size={48} fill="currentColor" className="ml-2" />}
           </button>
 
-          <button onClick={skipToComplete} className="p-6 bg-white/20 hover:bg-white/40 rounded-[2rem] transition-all text-gray-900 active:scale-90 border border-white/20">
+          <button onClick={skipToComplete} className="p-6 bg-white/20 hover:bg-white/40 rounded-[2rem] transition-all text-gray-900 active:scale-90 border border-white/20" title="Pular">
             <SkipForward size={28} />
           </button>
         </div>

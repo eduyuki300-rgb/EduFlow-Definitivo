@@ -3,14 +3,14 @@ import { syncFocusSession } from './useTasks';
 
 // ─── TYPES ───────────────────────────────────────────────────────────
 
-export type TimerMode = 'pomodoro' | 'stopwatch';
+export type TimerMode = 'pomodoro' | 'flowtime';
 export type TimerStatus =
   | 'idle'
   | 'running'
   | 'paused'
   | 'break'
   | 'break-paused'
-  | 'finished';
+  | 'completed';
 
 export interface FocusSessionApi {
   // Settings
@@ -31,6 +31,9 @@ export interface FocusSessionApi {
   timeElapsed: number; // seconds elapsed (stopwatch / interval)
   focusCycles: number; // completed focus cycles
   sessionLiquidTime: number; // total focused seconds this session
+  pendingLiquidTime: number;
+  pendingPomodoros: number;
+  pageTitle: string;
 
   // Actions
   toggleTimer: () => void;
@@ -40,11 +43,14 @@ export interface FocusSessionApi {
   skipBreakNewFocus: () => void;
   discardSessionTime: () => void;
   closeAfterPersist: () => Promise<void>;
+  formatTime: (s: number) => string;
+  progress: number;
 }
 
 // ─── CONSTANTS ───────────────────────────────────────────────────────
 
 const PREF = 'eduflow_session_';
+const STORAGE_KEY_BUFFER = 'focus_sync_buffer'; // For crash recovery
 
 function readInt(key: string, fallback: number) {
   try {
@@ -86,8 +92,13 @@ export function useFocusSession(
 
   // ── Timer state (Lazy Initializer for Persistence & Drift) ─────────
   const [initialState] = useState(() => {
-    const saved = localStorage.getItem(PREF + 'session_state');
+    // 🚑 1. Check for Crash Recovery (Buffer)
+    const savedBuffer = localStorage.getItem(STORAGE_KEY_BUFFER);
+    const savedState = localStorage.getItem(PREF + 'session_state');
+    
+    const saved = savedBuffer || savedState;
     if (!saved) return null;
+
     try {
       const s = JSON.parse(saved);
       const AGE_LIMIT = 24 * 60 * 60 * 1000; // 24h
@@ -99,9 +110,11 @@ export function useFocusSession(
       let tStatus = s.status;
 
       if (s.status === 'running') {
+        // Resume from where it was, or pause on recovery if it was a crash
         tLeft = Math.max(0, s.timeLeft - driftSec);
         tElapsed = s.timeElapsed + driftSec;
-        if (tLeft === 0) tStatus = 'finished';
+        if (tLeft === 0) tStatus = 'completed';
+        else if (savedBuffer) tStatus = 'paused'; // Auto-pause after crash
       } else if (s.status === 'break') {
         tLeft = Math.max(0, s.timeLeft - driftSec);
         if (tLeft === 0) tStatus = 'idle';
@@ -115,9 +128,10 @@ export function useFocusSession(
   const [timeLeft, setTimeLeft] = useState(initialState?.timeLeft ?? focusDuration);
   const [timeElapsed, setTimeElapsed] = useState(initialState?.timeElapsed ?? 0);
   const [focusCycles, setFocusCycles] = useState(initialState?.focusCycles ?? 0);
-  const [sessionLiquidTime, setSessionLiquidTime] = useState(0);
+  const [sessionLiquidTime, setSessionLiquidTime] = useState(initialState?.sessionLiquidTime ?? 0);
   const [pendingLiquidTime, setPendingLiquidTime] = useState(initialState?.pendingLiquidTime ?? 0);
   const [pendingPomodoros, setPendingPomodoros] = useState(initialState?.pendingPomodoros ?? 0);
+  const [lastSyncTime, setLastSyncTime] = useState(initialState?.lastSyncTime ?? 0);
 
   // ── Refs ────────────────────────────────────────────────────────────
   const statusRef = useRef(status);
@@ -131,6 +145,8 @@ export function useFocusSession(
   const modeRef = useRef(mode);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const taskTitleRef = useRef(taskTitle);
+  const startTimeRef = useRef<number | null>(null);
+  const durationAtStartRef = useRef<number>(0);
 
   // Keep refs in sync
   useEffect(() => { statusRef.current = status; }, [status]);
@@ -151,16 +167,37 @@ export function useFocusSession(
   useEffect(() => { localStorage.setItem(PREF + 'longBreakDur', String(longBreakDuration)); }, [longBreakDuration]);
   useEffect(() => { localStorage.setItem(PREF + 'strict', String(isStrictMode)); }, [isStrictMode]);
 
-  // Sync session state for persistence and multi-tab
+  // Sync session state for persistence and crash recovery
   useEffect(() => {
     try {
       const state = {
-        status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros,
+        status, 
+        timeLeft, 
+        timeElapsed, 
+        focusCycles, 
+        pendingLiquidTime, 
+        pendingPomodoros,
+        sessionLiquidTime,
+        lastSyncTime,
+        mode, 
+        taskId,
         timestamp: Date.now()
       };
       localStorage.setItem(PREF + 'session_state', JSON.stringify(state));
+      localStorage.setItem(STORAGE_KEY_BUFFER, JSON.stringify(state));
     } catch {}
-  }, [status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros]);
+  }, [status, timeLeft, timeElapsed, focusCycles, pendingLiquidTime, pendingPomodoros, sessionLiquidTime, lastSyncTime, mode, taskId]);
+
+  // 🚑 Emergency Backup: beforeunload
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (status === 'running' || pendingLiquidTime > 0) {
+        console.log("⚠️ Emergency buffer saved on tab close");
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [status, pendingLiquidTime]);
 
   // Auto-start logic with Drift Compensation on Initial Load
   useEffect(() => {
@@ -171,8 +208,6 @@ export function useFocusSession(
   // Auto-start logic for Strict Mode
   useEffect(() => {
     if (status === 'idle' && isStrictMode && timeLeft === focusDuration) {
-      // If we just finished a break and it's idle, and strict mode is on, start next focus
-      // (Small delay to allow UI to show break-end notification if any)
       const timer = setTimeout(() => {
         if (statusRef.current === 'idle') {
           setStatus('running');
@@ -192,18 +227,22 @@ export function useFocusSession(
     }
   }, []);
 
-  const updateTitle = useCallback((secs: number, phase: 'focus' | 'break' | 'done' | 'idle') => {
-    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
-    const ss = String(secs % 60).padStart(2, '0');
-    if (phase === 'focus') document.title = `⏳ (${mm}:${ss}) — ${taskTitleRef.current}`;
-    else if (phase === 'break') document.title = `☕ (${mm}:${ss}) — Pausa`;
-    else if (phase === 'done') document.title = '✅ Foco concluído!';
-    else document.title = 'EduFlow';
-  }, []);
-
   const startTick = useCallback((type: 'focus' | 'break') => {
     clearTimer();
+    startTimeRef.current = Date.now();
+    
+    // Capturar o estado inicial do cronômetro para cálculo de delta
+    const startVal = type === 'focus' 
+      ? (modeRef.current === 'pomodoro' ? timeLeftRef.current : timeElapsedRef.current)
+      : timeLeftRef.current;
+    
+    durationAtStartRef.current = startVal;
+
     intervalRef.current = setInterval(() => {
+      const now = Date.now();
+      const deltaSec = Math.floor((now - startTimeRef.current!) / 1000);
+      if (deltaSec <= 0) return;
+
       const s = statusRef.current;
       const m = modeRef.current;
 
@@ -214,57 +253,85 @@ export function useFocusSession(
 
       if (type === 'focus') {
         if (m === 'pomodoro') {
-          setTimeLeft((prev) => {
-            const next = prev - 1;
-            timeLeftRef.current = next;
-            if (next <= 0) {
-              clearTimer();
-              const newCycles = focusCyclesRef.current + 1;
-              setFocusCycles(newCycles);
-              const dur = focusDurRef.current;
-              // Sincronizar ciclo completo imediatamente com o motor global
-              syncFocusSession(taskId, dur, 1);
-              setSessionLiquidTime(s => s + dur);
-              setStatus('finished');
-              updateTitle(0, 'done');
-              return 0;
+          const newTimeLeft = Math.max(0, durationAtStartRef.current - deltaSec);
+          const actualElapsedThisTick = timeLeftRef.current - newTimeLeft;
+          
+          if (actualElapsedThisTick > 0) {
+            setTimeLeft(newTimeLeft);
+            timeLeftRef.current = newTimeLeft;
+            setTimeElapsed(e => e + actualElapsedThisTick);
+            setSessionLiquidTime(s => s + actualElapsedThisTick);
+            
+            // Auto-sync a cada 5 min (300s)
+            const currentTotal = sessionLiquidTime + actualElapsedThisTick;
+            if (currentTotal > 0 && currentTotal % 300 === 0) {
+              const minutesToSync = Math.floor(currentTotal / 60) - Math.floor(lastSyncTime / 60);
+              if (minutesToSync > 0) {
+                syncFocusSession(taskId, minutesToSync, 0);
+                setLastSyncTime(currentTotal);
+              }
             }
-            setTimeElapsed(e => e + 1);
-            setSessionLiquidTime(s => s + 1);
-            updateTitle(next, 'focus');
-            return next;
-          });
+          }
+
+          if (newTimeLeft <= 0) {
+            clearTimer();
+            const newCycles = focusCyclesRef.current + 1;
+            setFocusCycles(newCycles);
+            
+            // Ciclo completo: Adiciona 1 pomodoro e os minutos restantes
+            const totalInFocus = focusDurRef.current;
+            const minutesToSync = Math.floor(totalInFocus / 60) - Math.floor(lastSyncTime / 60);
+            
+            syncFocusSession(taskId, Math.max(0, minutesToSync), 1);
+            setLastSyncTime(0); // Reset for next cycle or break
+            setSessionLiquidTime(0);
+            setPendingLiquidTime(0);
+            setPendingPomodoros(0);
+            
+            setStatus('completed');
+          }
         } else {
-          // Stopwatch counts UP
-          setTimeElapsed(e => {
-            const next = e + 1;
-            setSessionLiquidTime(s => s + 1);
-            updateTitle(next, 'focus');
-            return next;
-          });
-          setTimeLeft(0);
+          // Flowtime
+          const newElapsed = durationAtStartRef.current + deltaSec;
+          const actualElapsedThisTick = newElapsed - timeElapsedRef.current;
+          
+          if (actualElapsedThisTick > 0) {
+            setTimeElapsed(newElapsed);
+            timeElapsedRef.current = newElapsed;
+            setSessionLiquidTime(s => s + actualElapsedThisTick);
+            
+            // Flowtime: Sync a cada 5 min
+            const currentTotal = sessionLiquidTime + actualElapsedThisTick;
+            if (currentTotal > 0 && currentTotal % 300 === 0) {
+              const minutesToSync = Math.floor(currentTotal / 60) - Math.floor(lastSyncTime / 60);
+              if (minutesToSync > 0) {
+                syncFocusSession(taskId, minutesToSync, 0);
+                setLastSyncTime(currentTotal);
+              }
+            }
+          }
+          setTimeLeft(99 * 60 * 60);
         }
       } else {
-        // Break Tick
-        setTimeLeft((prev) => {
-          const next = prev - 1;
-          timeLeftRef.current = next;
-          if (next <= 0) {
-            clearTimer();
-            const fd = focusDurRef.current;
-            setStatus('idle');
-            setTimeLeft(fd);
-            setTimeElapsed(0);
-            updateTitle(0, 'idle');
-            // Logic for auto-next-cycle if strict can be handled in a notification callback or here
-            return 0;
-          }
-          updateTitle(next, 'break');
-          return next;
-        });
+        // Break
+        const newTimeLeft = Math.max(0, durationAtStartRef.current - deltaSec);
+        if (timeLeftRef.current !== newTimeLeft) {
+          setTimeLeft(newTimeLeft);
+          timeLeftRef.current = newTimeLeft;
+        }
+
+        if (newTimeLeft <= 0) {
+          clearTimer();
+          const fd = focusDurRef.current;
+          setStatus('idle');
+          setTimeLeft(fd);
+          setTimeElapsed(0);
+          setSessionLiquidTime(0);
+          setLastSyncTime(0);
+        }
       }
-    }, 1000);
-  }, [clearTimer, updateTitle]);
+    }, 500); // Check every 500ms for responsiveness, but delta handles drift
+  }, [clearTimer, taskId, sessionLiquidTime, lastSyncTime]);
 
   // Multi-tab Sync Listener
   useEffect(() => {
@@ -293,32 +360,25 @@ export function useFocusSession(
     return () => window.removeEventListener('storage', handleStorage);
   }, [startTick, clearTimer]);
 
-  // Initial Load
+  // Initial Load - Clear buffer if session belongs to different task
   useEffect(() => {
-    const saved = localStorage.getItem(PREF + 'session_state');
+    const saved = localStorage.getItem(STORAGE_KEY_BUFFER);
     if (saved) {
       try {
         const s = JSON.parse(saved);
-        if (Date.now() - s.timestamp < 24 * 60 * 60 * 1000) {
-          setStatus(s.status);
-          setTimeLeft(s.timeLeft);
-          setTimeElapsed(s.timeElapsed);
-          setFocusCycles(s.focusCycles);
-          setPendingLiquidTime(s.pendingLiquidTime);
-          setPendingPomodoros(s.pendingPomodoros);
-          if (s.status === 'running') startTick('focus');
-          else if (s.status === 'break') startTick('break');
+        if (s.taskId && s.taskId !== taskId) {
+           localStorage.removeItem(STORAGE_KEY_BUFFER);
         }
       } catch {}
     }
-  }, []);
+  }, [taskId]);
 
   // ── Actions ─────────────────────────────────────────────────────────
 
   const toggleTimer = useCallback(() => {
     const s = statusRef.current;
-    if (s === 'idle' || s === 'paused' || s === 'finished') {
-      if (s === 'finished') {
+    if (s === 'idle' || s === 'paused' || s === 'completed') {
+      if (s === 'completed') {
         const fd = focusDurRef.current;
         setTimeLeft(fd);
         setTimeElapsed(0);
@@ -343,21 +403,26 @@ export function useFocusSession(
     setStatus('idle');
     setTimeLeft(fd);
     setTimeElapsed(0);
-    updateTitle(0, 'idle');
-  }, [clearTimer, updateTitle]);
+    localStorage.removeItem(STORAGE_KEY_BUFFER);
+  }, [clearTimer]);
 
   const skipToComplete = useCallback(() => {
     if (statusRef.current !== 'running') return;
     clearTimer();
     const elapsed = modeRef.current === 'pomodoro' ? (focusDurRef.current - timeLeftRef.current) : timeElapsedRef.current;
+    
+    // Persist immediately what was studied
+    const minutesToSync = Math.floor(elapsed / 60) - Math.floor(lastSyncTime / 60);
+    syncFocusSession(taskId, Math.max(0, minutesToSync), 1);
+    
     setFocusCycles(c => c + 1);
-    // Sincronizar progresso parcial/pulado imediatamente
-    syncFocusSession(taskId, elapsed, 1);
-    setSessionLiquidTime(s => s + elapsed);
-    setStatus('finished');
+    setSessionLiquidTime(0);
+    setLastSyncTime(0);
+    setPendingLiquidTime(0);
+    setPendingPomodoros(0);
+    setStatus('completed');
     setTimeLeft(0);
-    updateTitle(0, 'done');
-  }, [clearTimer, updateTitle, taskId]);
+  }, [clearTimer, taskId, lastSyncTime]);
 
   const startBreak = useCallback(() => {
     const isLong = focusCyclesRef.current > 0 && focusCyclesRef.current % 4 === 0;
@@ -373,20 +438,28 @@ export function useFocusSession(
 
   const closeAfterPersist = useCallback(async () => {
     clearTimer();
-    // Cálculo robusto para qualquer modo (Pomodoro ou Cronômetro)
-    let extra = 0;
-    if (statusRef.current === 'running') {
-      extra = modeRef.current === 'pomodoro' 
-        ? (focusDurRef.current - timeLeftRef.current) 
-        : timeElapsedRef.current;
-    }
     
-    // Enviar qualquer tempo pendente + tempo da sessão atual não salva
-    syncFocusSession(taskId, pendingLiquidTime + extra, pendingPomodoros);
+    // Calcular apenas o que NÃO foi sincronizado ainda
+    const elapsed = modeRef.current === 'pomodoro' 
+      ? (focusDurRef.current - timeLeftRef.current) 
+      : timeElapsedRef.current;
+    
+    const totalMinutesStudied = Math.floor(elapsed / 60);
+    const alreadySyncedMinutes = Math.floor(lastSyncTime / 60);
+    const finalMinutesToSync = totalMinutesStudied - alreadySyncedMinutes;
+
+    if (finalMinutesToSync > 0) {
+      syncFocusSession(taskId, finalMinutesToSync, 0);
+    }
     
     setPendingLiquidTime(0);
     setPendingPomodoros(0);
-  }, [clearTimer, taskId, pendingLiquidTime, pendingPomodoros]);
+    setSessionLiquidTime(0);
+    setLastSyncTime(0);
+    
+    localStorage.removeItem(STORAGE_KEY_BUFFER);
+    localStorage.removeItem(PREF + 'session_state');
+  }, [clearTimer, taskId, lastSyncTime]);
 
   const discardSessionTime = useCallback(() => {
     clearTimer();
@@ -397,14 +470,39 @@ export function useFocusSession(
     resetTimer();
   }, [clearTimer, resetTimer]);
 
+  // Computed Values
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (mode === 'flowtime' || h > 0) {
+      return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const currentDuration = status === 'break' || status === 'break-paused' 
+    ? (focusCycles > 0 && focusCycles % 4 === 0 ? longBreakDuration : breakDuration)
+    : focusDuration;
+
+  const progress = mode === 'pomodoro' 
+    ? ((currentDuration - timeLeft) / currentDuration) * 100
+    : 0;
+
+  const pageTitle = status === 'running'
+    ? `(${formatTime(mode === 'pomodoro' ? timeLeft : timeElapsed)}) ${taskTitle}`
+    : status === 'completed' ? '✅ Concluído!' : 'EduFlow';
+
   return {
     mode, setMode: (m) => { setModeState(m); resetTimer(); },
     status, focusDuration, setFocusDuration: setFocusDurationState,
     breakDuration, setBreakDuration: setBreakDurationState,
     longBreakDuration, setLongBreakDuration: setLongBreakDurationState,
     isStrictMode, setIsStrictMode: setIsStrictModeState,
-    timeLeft, timeElapsed, focusCycles, sessionLiquidTime,
+    timeLeft: mode === 'pomodoro' ? timeLeft : timeElapsed, 
+    timeElapsed, focusCycles, sessionLiquidTime,
+    pendingLiquidTime, pendingPomodoros, pageTitle,
     toggleTimer, resetTimer, skipToComplete, startBreak, skipBreakNewFocus,
-    discardSessionTime, closeAfterPersist
+    discardSessionTime, closeAfterPersist, formatTime, progress
   };
 }

@@ -13,9 +13,25 @@ import { Task, Status } from '../types';
  * Buffer global para atualizações frequentes (ex: liquidTime)
  * Para evitar múltiplas escritas no Firestore em um curto intervalo.
  */
-const pendingUpdates = new Map<string, { liquidTime: number, pomodoros: number }>();
+const BUFFER_KEY = 'eduflow_pending_sync';
+
+const getInitialPendingUpdates = () => {
+  try {
+    const saved = localStorage.getItem(BUFFER_KEY);
+    if (saved) return new Map<string, { liquidTime: number, pomodoros: number }>(JSON.parse(saved));
+  } catch {}
+  return new Map<string, { liquidTime: number, pomodoros: number }>();
+};
+
+const pendingUpdates = getInitialPendingUpdates();
+
+const saveBuffer = () => {
+  try {
+    localStorage.setItem(BUFFER_KEY, JSON.stringify(Array.from(pendingUpdates.entries())));
+  } catch {}
+};
+
 const isSyncing = { current: false };
-let syncTimer: NodeJS.Timeout | null = null;
 
 export function useTasks(userId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -112,6 +128,7 @@ export function useTasks(userId: string | undefined) {
     
     const updates = Array.from(pendingUpdates.entries());
     pendingUpdates.clear();
+    saveBuffer();
 
     try {
       const { increment } = await import('firebase/firestore');
@@ -137,6 +154,7 @@ export function useTasks(userId: string | undefined) {
           pomodoros: prev.pomodoros + data.pomodoros
         });
       });
+      saveBuffer();
       setSyncStatus('error');
     } finally {
       isSyncing.current = false;
@@ -225,7 +243,5 @@ export function syncFocusSession(
     liquidTime: current.liquidTime + liquidTimeIncrement,
     pomodoros: current.pomodoros + pomodorosIncrement
   });
-  
-  // Nota: Não chamamos updateDoc aqui! 
-  // O loop de 5min ou o fechar da aba cuidará disso.
+  saveBuffer();
 }

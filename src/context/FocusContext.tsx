@@ -37,8 +37,17 @@ export function FocusProvider({ children, tasks }: { children: React.ReactNode, 
     setActiveTaskId(task?.id || null);
   };
 
+  // Envolver o closeAfterPersist para garantir limpeza do contexto
+  const wrappedSession = {
+    ...session,
+    closeAfterPersist: async () => {
+      await session.closeAfterPersist();
+      setActiveTaskId(null);
+    }
+  };
+
   return (
-    <FocusContext.Provider value={{ activeTask, session, view, setActiveTask, setView }}>
+    <FocusContext.Provider value={{ activeTask, session: wrappedSession, view, setActiveTask, setView }}>
       {children}
     </FocusContext.Provider>
   );
