@@ -7,41 +7,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   CalendarDays, CalendarRange, Inbox, Target, History, Plus, Circle, CheckCircle2, 
-  LogIn, LogOut, X, CheckSquare, Square, Star, BookOpen, Brain, Trash2, Pencil, 
-  Upload, Image as ImageIcon, Loader2, LayoutList, Grid, BarChart2, Sparkles, 
+  LogIn, LogOut, X, Square, Star, BookOpen, Brain, Trash2, Pencil, 
+  Loader2, LayoutList, Grid, BarChart2, Sparkles, 
   Tag, Clock, ChevronDown, ChevronUp, Search, CloudRain, Snowflake, Droplets, 
-  Droplet, Play, Check, Settings 
+  Droplet, Play, Check, Settings, Cloud, CloudOff, CloudCheck
 } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { auth, db, loginWithGoogle, logout } from './firebase';
 import { User } from 'firebase/auth';
-import { Task, Priority, Status, SubTask } from './types';
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
+
+// Componentes
+import { BackgroundEffects, type BgEffect } from './components/BackgroundEffects';
 import { PomodoroWidget } from './components/PomodoroWidget';
 import { FocusMode } from './components/FocusMode';
 import { FocusMiniPlayer } from './components/FocusMiniPlayer';
-import { BackgroundEffects, BgEffect } from './components/BackgroundEffects';
+import { SemanaKanban } from './components/SemanaKanban';
+import { EduStuffsPanel } from './components/EduStuffs/EduStuffsPanel';
+
+// Hooks & Contexto
 import { useAuth } from './hooks/useAuth';
 import { useTasks, createTask, updateTask, deleteTask } from './hooks/useTasks';
-import { Cloud, CloudOff, CloudCheck, CloudUpload } from 'lucide-react';
-import { playSuccessSound } from './utils/audio';
-import { SemanaKanban } from './components/SemanaKanban';
-import { FocusProvider, useFocus } from './context/FocusContext';
-import { EduStuffsPanel } from './components/EduStuffs/EduStuffsPanel';
 import { useEduStuffs } from './hooks/useEduStuffs';
+import { FocusProvider, useFocus } from './context/FocusContext';
+
+// Utils, Types & Constants
+import { cn } from './lib/cn';
+import { playSuccessSound } from './utils/audio';
 import { SUBJECT_INFO, SUBJECTS } from './constants/subjects';
 import type { SubjectInfo } from './constants/subjects';
-
-// removed local playSuccessSound, now using from utils
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-// Removed local Tab type, now defined via TABS
-
-// SUBJECT_INFO moved to src/constants/subjects.ts
+import { Task, Priority, Status, SubTask } from './types';
+import { loginWithGoogle, logout, auth } from './firebase';
 
 const TABS = [
   { id: 'hoje', label: 'Hoje', icon: CalendarDays, color: 'text-pastel-peach' },
@@ -104,15 +97,15 @@ export default function App() {
   };
 
   if (!isAuthReady) {
-    return <div className="flex h-[100dvh] items-center justify-center bg-pastel-bg">Carregando...</div>;
+    return <div className="flex h-dvh items-center justify-center bg-pastel-bg">Carregando...</div>;
   }
 
   if (!user) {
     return (
-      <div className="flex flex-col h-[100dvh] w-full max-w-md mx-auto bg-white items-center justify-center p-8 text-center shadow-2xl sm:rounded-[2.5rem] sm:h-[80vh] sm:my-[10vh] border border-gray-100 animate-in fade-in duration-500 relative overflow-hidden">
+      <div className="flex flex-col h-dvh w-full max-w-md mx-auto bg-white items-center justify-center p-8 text-center shadow-2xl sm:rounded-5xl sm:h-[80vh] sm:my-[10vh] border border-gray-100 animate-in fade-in duration-500 relative overflow-hidden">
         <BackgroundEffects effect={bgEffect} />
         <div className="relative z-10 w-full flex flex-col items-center">
-          <div className="w-24 h-24 bg-orange-50 rounded-[2rem] flex items-center justify-center mb-8 shadow-sm border border-orange-100 animate-bounce-slow">
+          <div className="w-24 h-24 bg-orange-50 rounded-4xl flex items-center justify-center mb-8 shadow-sm border border-orange-100 animate-bounce-slow">
             <CalendarDays size={48} className="text-orange-500" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-3 tracking-tight">EduFlow</h1>
@@ -177,16 +170,16 @@ function AppContent({
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full md:max-w-[100%] lg:max-w-[98%] xl:max-w-[96%] mx-auto bg-transparent overflow-hidden relative shadow-2xl sm:h-screen border-x border-white/20">
+    <div className="flex flex-col h-dvh w-full md:max-w-full lg:max-w-[98%] xl:max-w-[96%] mx-auto bg-transparent overflow-hidden relative shadow-2xl sm:h-screen border-x border-white/20">
       <BackgroundEffects effect={bgEffect} />
       <PomodoroWidget tasks={tasks} />
 
       {/* HEADER UNIFICADO: PREMIUM PAPER DESIGN */}
-      <header className="px-5 py-4 flex items-center justify-between border-b border-black/5 bg-[#FCF9F2]/80 backdrop-blur-xl sticky top-0 z-[60] shadow-sm">
+      <header className="px-5 py-4 flex items-center justify-between border-b border-black/5 bg-[#FCF9F2]/80 backdrop-blur-xl sticky top-0 z-60 shadow-sm">
         <div className="flex items-center gap-4">
           <div 
             onClick={() => setActiveTab('hoje')}
-            className="w-10 h-10 bg-gradient-to-br from-orange-400 to-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200/50 -rotate-3 hover:rotate-0 transition-all cursor-pointer group active:scale-90"
+            className="w-10 h-10 bg-linear-to-br from-orange-400 to-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200/50 -rotate-3 hover:rotate-0 transition-all cursor-pointer group active:scale-90"
           >
             <span className="text-white font-black text-2xl italic tracking-tighter group-hover:scale-110 transition-transform">EF</span>
           </div>
@@ -212,7 +205,7 @@ function AppContent({
                  <motion.div 
                    initial={{ width: 0 }}
                    animate={{ width: `${progressHoje}%` }}
-                   className="h-full bg-gradient-to-r from-orange-400 to-rose-500 transition-all duration-1000"
+                   className="h-full bg-linear-to-r from-orange-400 to-rose-500 transition-all duration-1000"
                  />
                </div>
              </div>
@@ -302,13 +295,13 @@ function AppContent({
                 {isBgMenuOpen && (
                   <>
                     {/* Backdrop for closing */}
-                    <div className="fixed inset-0 z-[65]" onClick={() => setIsBgMenuOpen(false)} />
+                    <div className="fixed inset-0 z-65" onClick={() => setIsBgMenuOpen(false)} />
                     
                     <motion.div 
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute right-0 top-full mt-3 bg-white/95 backdrop-blur-2xl border border-gray-100 shadow-2xl rounded-3xl p-2 z-[70] min-w-[150px]"
+                      className="absolute right-0 top-full mt-3 bg-white/95 backdrop-blur-2xl border border-gray-100 shadow-2xl rounded-3xl p-2 z-70 min-w-[150px]"
                     >
                        {(['bubbles', 'rain', 'snow', 'none'] as BgEffect[]).map(eff => (
                          <button 
@@ -332,7 +325,7 @@ function AppContent({
               </AnimatePresence>
             </div>
 
-           <div className="w-[1px] h-8 bg-black/5 mx-1" />
+           <div className="w-px h-8 bg-black/5 mx-1" />
            
            <button 
              onClick={() => {
@@ -404,7 +397,7 @@ function AppContent({
         <Plus size={32} strokeWidth={2.5} className="group-hover:rotate-90 transition-transform duration-300" />
       </button>
 
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] sm:w-auto sm:min-w-[440px] bg-white/70 backdrop-blur-xl border border-gray-200/50 px-3 py-1.5 flex justify-between items-center z-40 rounded-[2rem] shadow-xl">
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] sm:w-auto sm:min-w-[440px] bg-white/70 backdrop-blur-xl border border-gray-200/50 px-3 py-1.5 flex justify-between items-center z-40 rounded-4xl shadow-xl">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -471,7 +464,7 @@ function AppContent({
 
 // Modal Component
 function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onClose: (s?: string) => void, user: User, taskToEdit?: Task }) {
-  const [activeTab, setActiveTab] = useState<'geral' | 'estrutura' | 'metricas' | 'ia'>('geral');
+  const [activeTab, setActiveTab] = useState<'geral' | 'metricas' | 'ia'>('geral');
   
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('Geral');
@@ -806,16 +799,15 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
   };
 
   const tabs = [
-    { id: 'geral', label: 'Geral', icon: <BookOpen size={16} /> },
-    { id: 'estrutura', label: 'Estrutura', icon: <LayoutList size={16} /> },
-    { id: 'metricas', label: 'Métricas', icon: <BarChart2 size={16} /> },
-    { id: 'ia', label: 'IA Assist', icon: <Sparkles size={16} /> },
+    { id: 'geral', label: 'Conteúdo', icon: <BookOpen size={16} />, color: 'bg-emerald-500' },
+    { id: 'metricas', label: 'Métricas', icon: <BarChart2 size={16} />, color: 'bg-blue-500' },
+    { id: 'ia', label: 'IA Assist', icon: <Sparkles size={16} />, color: 'bg-purple-500' },
   ] as const;
 
   return (
-    <div className="fixed inset-0 h-[100dvh] z-50 flex flex-col sm:items-center sm:justify-center bg-black/20 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 h-dvh z-50 flex flex-col sm:items-center sm:justify-center bg-black/20 backdrop-blur-sm sm:p-4 animate-in fade-in duration-200">
       <div 
-        className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col sm:flex-row sm:rounded-[2rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-300 border border-gray-100 overflow-hidden"
+        className="bg-white w-full h-full sm:h-auto sm:max-h-[90vh] sm:max-w-4xl flex flex-col sm:flex-row sm:rounded-4xl shadow-2xl animate-in slide-in-from-bottom-8 duration-300 border border-gray-100 overflow-hidden"
         onPaste={handlePaste}
       >
         
@@ -853,6 +845,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                 <span className={cn("transition-transform duration-300", activeTab === tab.id && "scale-110")}>
                   {tab.icon}
                 </span>
+                <span className={cn("w-2 h-2 rounded-full", tab.color, activeTab === tab.id ? "opacity-100" : "opacity-40")} />
                 {tab.label}
               </button>
             ))}
@@ -883,7 +876,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar">
             
-            {/* TAB: GERAL */}
+            {/* TAB: GERAL (merged with Estrutura) */}
             {activeTab === 'geral' && (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                 <div>
@@ -1003,73 +996,68 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     />
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* TAB: ESTRUTURA */}
-            {activeTab === 'estrutura' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                  <div>
-                    <h3 className="font-bold text-gray-900 text-sm">Checklist de Aulas</h3>
-                    <p className="text-xs text-gray-500">Divida o módulo em partes menores.</p>
-                  </div>
-                  <button type="button" onClick={addSubtaskGroup} className="bg-white px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold text-xs flex items-center gap-2 border border-gray-200 shadow-sm transition-all active:scale-95">
-                    <Plus size={14} /> Novo Grupo
-                  </button>
-                </div>
-                
-                {subtasks.length === 0 && (
-                  <div className="text-center py-12 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
-                    <LayoutList size={32} className="mx-auto text-gray-200 mb-3" />
-                    <p className="text-sm text-gray-500 font-medium">Nenhuma sub-tarefa adicionada.</p>
-                    <p className="text-xs text-gray-400 mt-1">Ex: Vídeo aulas, Exercícios de Fixação</p>
-                  </div>
-                )}
-                
-                <div className="space-y-4">
-                  {subtasks.map((group, gIndex) => (
-                    <div key={group.id} className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
-                      {/* Group Header */}
-                      <div className="flex items-center gap-4 mb-5">
-                        <div className="bg-gray-100 text-gray-900 text-[10px] font-bold w-7 h-7 flex items-center justify-center rounded-lg shrink-0 border border-gray-200">
-                          {gIndex + 1}
-                        </div>
-                        <input
-                          type="text"
-                          value={group.title}
-                          onChange={(e) => updateSubtaskGroupTitle(group.id, e.target.value)}
-                          placeholder="Ex: Vídeo aulas"
-                          className="flex-1 bg-transparent font-bold text-gray-900 text-lg focus:outline-none placeholder:text-gray-200"
-                        />
-                        <button type="button" onClick={() => removeSubtaskGroup(group.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50 rounded-lg">
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-
-                      {/* Group Items */}
-                      <div className="pl-11 space-y-3">
-                        {(group.items || []).map((item, iIndex) => (
-                          <div key={item.id} className="flex items-center gap-3 group/item">
-                            <span className="text-[10px] text-gray-300 font-bold w-4 shrink-0">{iIndex + 1}.</span>
-                            <input
-                              type="text"
-                              value={item.title}
-                              onChange={(e) => updateSubtaskItemTitle(group.id, item.id, e.target.value)}
-                              placeholder="Ex: 📺 1. Introdução (30 min)"
-                              className="flex-1 bg-transparent text-sm text-gray-700 focus:text-gray-900 focus:outline-none placeholder:text-gray-200 font-medium"
-                            />
-                            <button type="button" onClick={() => removeSubtaskItem(group.id, item.id)} className="text-gray-300 hover:text-red-500 p-1.5 shrink-0 opacity-0 group-hover/item:opacity-100 transition-all hover:bg-red-50 rounded-lg">
-                              <X size={16} />
-                            </button>
-                          </div>
-                        ))}
-                        <button type="button" onClick={() => addSubtaskItem(group.id)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-2 mt-4 py-3 bg-gray-50 px-4 rounded-xl border border-dashed border-gray-200 w-full justify-center transition-all hover:bg-gray-100 active:scale-[0.98] uppercase tracking-widest">
-                          <Plus size={14} /> Adicionar item
-                        </button>
-                      </div>
+                {/* Merged Estrutura Section */}
+                <div className="border-t border-gray-200 pt-8 mt-8">
+                  <div className="flex justify-between items-center bg-gray-50 p-4 rounded-2xl border border-gray-100 mb-6">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-sm">Checklist de Aulas</h3>
+                      <p className="text-xs text-gray-500">Divida o módulo em partes menores.</p>
                     </div>
-                  ))}
+                    <button type="button" onClick={addSubtaskGroup} className="bg-white px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold text-xs flex items-center gap-2 border border-gray-200 shadow-sm transition-all active:scale-95">
+                      <Plus size={14} /> Novo Grupo
+                    </button>
+                  </div>
+                  
+                  {subtasks.length === 0 && (
+                    <div className="text-center py-12 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+                      <LayoutList size={32} className="mx-auto text-gray-200 mb-3" />
+                      <p className="text-sm text-gray-500 font-medium">Nenhuma sub-tarefa adicionada.</p>
+                      <p className="text-xs text-gray-400 mt-1">Ex: Vídeo aulas, Exercícios de Fixação</p>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-4">
+                    {subtasks.map((group, gIndex) => (
+                      <div key={group.id} className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
+                        <div className="flex items-center gap-4 mb-5">
+                          <div className="bg-gray-100 text-gray-900 text-[10px] font-bold w-7 h-7 flex items-center justify-center rounded-lg shrink-0 border border-gray-200">
+                            {gIndex + 1}
+                          </div>
+                          <input
+                            type="text"
+                            value={group.title}
+                            onChange={(e) => updateSubtaskGroupTitle(group.id, e.target.value)}
+                            placeholder="Ex: Vídeo aulas"
+                            className="flex-1 bg-transparent font-bold text-gray-900 text-lg focus:outline-none placeholder:text-gray-200"
+                          />
+                          <button type="button" onClick={() => removeSubtaskGroup(group.id)} className="text-gray-400 hover:text-red-500 transition-colors p-1.5 hover:bg-red-50 rounded-lg">
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                        <div className="pl-11 space-y-3">
+                          {(group.items || []).map((item, iIndex) => (
+                            <div key={item.id} className="flex items-center gap-3 group/item">
+                              <span className="text-[10px] text-gray-300 font-bold w-4 shrink-0">{iIndex + 1}.</span>
+                              <input
+                                type="text"
+                                value={item.title}
+                                onChange={(e) => updateSubtaskItemTitle(group.id, item.id, e.target.value)}
+                                placeholder="Ex: 📺 1. Introdução (30 min)"
+                                className="flex-1 bg-transparent text-sm text-gray-700 focus:text-gray-900 focus:outline-none placeholder:text-gray-200 font-medium"
+                              />
+                              <button type="button" onClick={() => removeSubtaskItem(group.id, item.id)} className="text-gray-300 hover:text-red-500 p-1.5 shrink-0 opacity-0 group-hover/item:opacity-100 transition-all hover:bg-red-50 rounded-lg">
+                                <X size={16} />
+                              </button>
+                            </div>
+                          ))}
+                          <button type="button" onClick={() => addSubtaskItem(group.id)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-2 mt-4 py-3 bg-gray-50 px-4 rounded-xl border border-dashed border-gray-200 w-full justify-center transition-all hover:bg-gray-100 active:scale-[0.98] uppercase tracking-widest">
+                            <Plus size={14} /> Adicionar item
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -1079,7 +1067,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="bg-gray-50 border border-gray-100 rounded-[2rem] p-6 shadow-sm">
+                  <div className="bg-gray-50 border border-gray-100 rounded-4xl p-6 shadow-sm">
                     <label className="block text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest">🍅 Pomodoros Feitos</label>
                     <div className="flex items-center justify-between">
                       <button type="button" onClick={() => setPomodoros(Math.max(0, pomodoros - 1))} className="w-12 h-12 rounded-2xl bg-white text-gray-400 font-bold hover:bg-gray-100 flex items-center justify-center text-xl transition-all active:scale-90 border border-gray-100">-</button>
@@ -1088,7 +1076,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
                     </div>
                   </div>
 
-                  <div className="bg-gray-50 border border-gray-100 rounded-[2rem] p-6 shadow-sm">
+                  <div className="bg-gray-50 border border-gray-100 rounded-4xl p-6 shadow-sm">
                     <label className="block text-[10px] font-bold text-gray-400 mb-4 uppercase tracking-widest">📝 Questões</label>
                     <div className="flex items-center justify-center gap-4">
                       <input
@@ -1165,7 +1153,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
             {/* TAB: IA (Import) */}
             {activeTab === 'ia' && (
               <div className="space-y-6 animate-in fade-in duration-300">
-                <div className="bg-indigo-50/30 p-8 rounded-[2rem] border border-indigo-100 text-center">
+                <div className="bg-indigo-50/30 p-8 rounded-4xl border border-indigo-100 text-center">
                   <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-6 border border-indigo-100 text-indigo-500">
                     <Sparkles size={32} />
                   </div>
@@ -1309,7 +1297,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
       
       {/* Daily Summary Hero */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+        <div className="bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-500 shadow-inner">
             <Target size={24} />
           </div>
@@ -1320,7 +1308,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
             </p>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+        <div className="bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-500 shadow-inner">
             <Clock size={24} />
           </div>
@@ -1331,7 +1319,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
             </p>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm flex items-center gap-4">
+        <div className="bg-white p-6 rounded-4xl border border-gray-100 shadow-sm flex items-center gap-4">
           <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500 shadow-inner">
             <CheckCircle2 size={24} />
           </div>
@@ -1403,7 +1391,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
                       <span title="Carga horária elevada" className="animate-pulse">🔥</span>
                     )}
                   </h3>
-                  <div className="flex-1 h-[1px] bg-gray-100" />
+                  <div className="flex-1 h-px bg-gray-100" />
                   <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length}</span>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1488,7 +1476,7 @@ function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => vo
                   <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
                   CENTRO DE TRIAGEM
                 </h2>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-[1.125rem]">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-4.5">
                   {inboxTasks.length} {inboxTasks.length === 1 ? 'item pendente' : 'itens pendentes'}
                 </p>
               </div>
@@ -1527,7 +1515,7 @@ function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => vo
                     <div className="flex items-center gap-4 px-2">
                       <div className={cn("w-1 h-3 rounded-full", info.tagColor.split(' ')[1])} />
                       <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{subject}</h3>
-                      <div className="flex-1 h-[1px] bg-gray-100" />
+                      <div className="flex-1 h-px bg-gray-100" />
                     </div>
                     <div className="space-y-3">
                       {items.map(task => (
@@ -1617,8 +1605,15 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
     }
   };
 
+  const [isAnimatingCheck, setIsAnimatingCheck] = React.useState(false);
+
   // Complete entire task
   const toggleTaskStatus = async () => {
+    const willComplete = task.status !== 'concluida';
+    if (willComplete) {
+      setIsAnimatingCheck(true);
+      setTimeout(() => setIsAnimatingCheck(false), 300);
+    }
     try {
       const newStatus = task.status === 'concluida' ? 'hoje' : 'concluida';
       await updateTask(task.id, { status: newStatus });
@@ -1674,12 +1669,12 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
     <div 
       style={{ '--shadow-color': subjectInfo.shadowColor } as React.CSSProperties}
       className={cn(
-        "group relative p-5 rounded-[2.5rem] border border-white/50 backdrop-blur-sm flex flex-col gap-4 shadow-colored hover:shadow-xl transition-all animate-in fade-in duration-300",
+        "group relative p-5 rounded-5xl border border-white/50 backdrop-blur-sm flex flex-col gap-4 shadow-colored hover:shadow-xl transition-all animate-in fade-in duration-300",
         subjectInfo.cardBg
       )}
     >
       {/* Dynamic Background Tint */}
-      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-5 pointer-events-none rounded-[1.5rem]", subjectInfo.gradient)} />
+      <div className={cn("absolute inset-0 bg-linear-to-br opacity-5 pointer-events-none rounded-3xl", subjectInfo.gradient)} />
       
       {/* --- TOP ROW: MATERIA & ACTIONS --- */}
       <div className="relative flex items-center justify-between z-10 gap-2">
@@ -1751,21 +1746,25 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
             </button>
           )}
           <button onClick={(e) => { e.stopPropagation(); onEdit(); }} title="Editar"
-            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-all shadow-sm bg-white border border-gray-50">
-            <Pencil size={14} />
+            className="p-2.5 text-gray-400 hover:text-gray-600 hover:bg-white rounded-lg transition-all shadow-sm bg-white border border-gray-50">
+            <Pencil size={16} />
           </button>
         </div>
       </div>
 
       {/* --- CONTENT ROW: CHECKBOX & TITLE --- */}
       <div className="relative flex items-start gap-4 z-10">
-        <button onClick={(e) => { e.stopPropagation(); toggleTaskStatus(); }}
+        <motion.button 
+          onClick={(e) => { e.stopPropagation(); toggleTaskStatus(); }}
           className={cn(
             "mt-1 transition-all shrink-0 active:scale-75 p-0.5 rounded-full border-2", 
             task.status === 'concluida' ? "text-green-500 border-green-500 bg-green-50" : "text-gray-300 border-gray-200 hover:text-green-500 hover:border-green-500"
-          )}>
+          )}
+          animate={isAnimatingCheck ? { scale: [1, 1.3, 1] } : {}}
+          transition={{ duration: 0.3 }}
+        >
           {task.status === 'concluida' ? <CheckCircle2 size={22} /> : <Circle size={22} />}
-        </button>
+        </motion.button>
         <div className="flex-1 min-w-0 pr-8">
           <h3 className={cn(
             "font-semibold text-[16px] leading-[1.4] tracking-tight mb-2 transition-all", 
@@ -1838,7 +1837,7 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
       {checklistPct >= 0 && (
         <div className="relative z-10 pt-1">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em]">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
               Progresso
             </span>
             <motion.span
@@ -2033,9 +2032,42 @@ function HistoricoTab({ tasks, onEdit, userId }: { tasks: Task[], onEdit: (task:
     );
   }
 
+  // Stats calculations
+  const totalPomodoros = completedTasks.reduce((acc, t) => acc + (t.pomodoros || 0), 0);
+  const totalLiquidTime = completedTasks.reduce((acc, t) => acc + (t.liquidTime || 0), 0);
+  const totalQuestions = completedTasks.reduce((acc, t) => acc + (t.questionsTotal || 0), 0);
+  const totalCorrect = completedTasks.reduce((acc, t) => acc + (t.questionsCorrect || 0), 0);
+  const avgAccuracy = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col max-w-5xl mx-auto w-full px-1 pb-20">
       
+      {/* Stats Header */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Concluídas</p>
+          <p className="text-2xl font-black text-gray-900">{completedTasks.length}</p>
+        </div>
+        <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 shadow-sm">
+          <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Pomodoros</p>
+          <p className="text-2xl font-black text-orange-600">{totalPomodoros}</p>
+        </div>
+        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 shadow-sm">
+          <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Tempo Focado</p>
+          <p className="text-2xl font-black text-blue-600">{formatDuration(totalLiquidTime)}</p>
+        </div>
+        <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 shadow-sm">
+          <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Acerto Médio</p>
+          <p className="text-2xl font-black text-emerald-600">{totalQuestions > 0 ? `${avgAccuracy}%` : '-'}</p>
+        </div>
+      </div>
+
       {/* View Toggle */}
       <div className="flex items-center gap-1 p-1 bg-white/50 backdrop-blur-md border border-white/80 rounded-2xl w-fit mb-8 shadow-sm">
         <button
@@ -2116,7 +2148,7 @@ function HistoricoTab({ tasks, onEdit, userId }: { tasks: Task[], onEdit: (task:
                 <div key={label} className="space-y-6">
                   <div className="flex items-center gap-4 px-2">
                     <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
-                    <div className="flex-1 h-[1px] bg-gray-100" />
+                    <div className="flex-1 h-px bg-gray-100" />
                     <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length} módulos</span>
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

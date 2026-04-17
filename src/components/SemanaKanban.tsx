@@ -111,7 +111,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 rounded-[2rem] p-3 transition-all overflow-y-auto custom-scrollbar border border-gray-50 shadow-inner",
+                          "flex-1 rounded-4xl p-3 transition-all overflow-y-auto custom-scrollbar border border-gray-50 shadow-inner",
                           column.color,
                           snapshot.isDraggingOver ? "ring-2 ring-orange-500/10" : ""
                         )}
@@ -139,7 +139,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                                   {...provided.draggableProps}
                                   {...provided.dragHandleProps}
                                   className={cn(
-                                    "p-4 rounded-[2rem] border border-white/50 backdrop-blur-sm mb-3 group relative select-none shadow-sm",
+                                    "p-4 rounded-4xl border border-white/50 backdrop-blur-sm mb-3 group relative select-none shadow-sm",
                                     info.cardBg,
                                     snapshot.isDragging ? "shadow-2xl ring-2 ring-orange-100 scale-105" : "hover:shadow-md hover:border-gray-100 transition-all"
                                   )}
@@ -175,7 +175,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                                           {completedItems} <span className="text-gray-300 font-medium">/</span> {totalItems}
                                         </span>
                                       </div>
-                                      <div className="h-1.5 w-full rounded-full bg-black/5 overflow-hidden border border-white/50 shadow-inner p-[1px]">
+                                      <div className="h-1.5 w-full rounded-full bg-black/5 overflow-hidden border border-white/50 shadow-inner p-px">
                                         <motion.div 
                                           initial={{ width: 0 }}
                                           animate={{ width: `${progressPct}%` }}

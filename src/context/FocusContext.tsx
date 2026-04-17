@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Task } from '../types';
 import { useFocusSession, FocusSessionApi } from '../hooks/useFocusSession';
 
@@ -37,14 +37,19 @@ export function FocusProvider({ children, tasks }: { children: React.ReactNode, 
     setActiveTaskId(task?.id || null);
   };
 
-  // Envolver o closeAfterPersist para garantir limpeza do contexto
-  const wrappedSession = {
+  const wrappedSession = useMemo(() => ({
     ...session,
-    closeAfterPersist: async () => {
-      await session.closeAfterPersist();
+    persistAndClose: async () => {
+      await session.persistAndClose();
       setActiveTaskId(null);
+      setView('widget');
+    },
+    discardAndClose: async () => {
+      await session.discardAndClose();
+      setActiveTaskId(null);
+      setView('widget');
     }
-  };
+  }), [session]);
 
   return (
     <FocusContext.Provider value={{ activeTask, session: wrappedSession, view, setActiveTask, setView }}>

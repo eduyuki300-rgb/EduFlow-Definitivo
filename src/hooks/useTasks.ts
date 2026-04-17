@@ -32,6 +32,25 @@ const saveBuffer = () => {
 };
 
 const isSyncing = { current: false };
+const LEGACY_RESET_FLAG_PREFIX = 'eduflow_legacy_liquid_time_reset_v2_';
+
+function clearLegacyFocusClientState() {
+  pendingUpdates.clear();
+  saveBuffer();
+
+  try {
+    localStorage.removeItem(BUFFER_KEY);
+    localStorage.removeItem('focus_sync_buffer');
+    localStorage.removeItem('eduflow_active_focus_id');
+
+    const sessionKeys = Object.keys(localStorage).filter((key) => key.startsWith('eduflow_session_'));
+    for (const key of sessionKeys) {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // best effort cleanup
+  }
+}
 
 export function useTasks(userId: string | undefined) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -39,6 +58,7 @@ export function useTasks(userId: string | undefined) {
   const [error, setError] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'pending' | 'error'>('synced');
   const syncStatusRef = useRef(syncStatus);
+  const legacyCleanupStartedRef = useRef(false);
 
   useEffect(() => {
     syncStatusRef.current = syncStatus;
@@ -77,6 +97,8 @@ export function useTasks(userId: string | undefined) {
   }, [userId]);
 
   useEffect(() => {
+    legacyCleanupStartedRef.current = false;
+
     if (!userId) {
       setTasks([]);
       setIsLoading(false);
@@ -118,6 +140,50 @@ export function useTasks(userId: string | undefined) {
       unsubscribe();
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId || isLoading || legacyCleanupStartedRef.current) {
+      return;
+    }
+
+    const flagKey = `${LEGACY_RESET_FLAG_PREFIX}${userId}`;
+    if (localStorage.getItem(flagKey) === 'true') {
+      return;
+    }
+
+    legacyCleanupStartedRef.current = true;
+
+    const runLegacyCleanup = async () => {
+      clearLegacyFocusClientState();
+
+      const tasksWithLegacyTime = tasks.filter((task) => (task.liquidTime ?? 0) > 0);
+      if (tasksWithLegacyTime.length === 0) {
+        localStorage.setItem(flagKey, 'true');
+        return;
+      }
+
+      setSyncStatus('syncing');
+
+      try {
+        await Promise.all(
+          tasksWithLegacyTime.map((task) =>
+            updateDoc(doc(db, 'tasks', task.id), {
+              liquidTime: 0,
+            })
+          )
+        );
+
+        localStorage.setItem(flagKey, 'true');
+        setSyncStatus('synced');
+      } catch (cleanupError) {
+        console.error('Erro ao limpar liquidTime legado:', cleanupError);
+        legacyCleanupStartedRef.current = false;
+        setSyncStatus('error');
+      }
+    };
+
+    runLegacyCleanup();
+  }, [isLoading, tasks, userId]);
 
   // Função para forçar a sincronização de tudo que está no buffer
   const forceSync = async () => {

@@ -27,6 +27,12 @@
 
   --gradient-subtle: linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%);
   --gradient-dark: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+
+  --radius-4xl: 2rem;
+  --radius-5xl: 2.5rem;
+  --z-60: 60;
+  --z-65: 65;
+  --z-70: 70;
 }
 
 body {

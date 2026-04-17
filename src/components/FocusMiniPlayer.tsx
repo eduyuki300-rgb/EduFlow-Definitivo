@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GripVertical, Maximize2, Pause, Play, Square, X, Timer, PictureInPicture2 } from 'lucide-react';
+import { Maximize2, Pause, Play, Square, X, PictureInPicture2 } from 'lucide-react';
 import { useFocus } from '../context/FocusContext';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -62,6 +62,7 @@ export function FocusMiniPlayer() {
   const statusLabel = 
     status === 'idle' ? 'Pronto' : 
     status === 'paused' ? 'Pausado' : 
+    status === 'break-paused' ? 'Pausa (pausada)' : 
     isBreakMode ? 'Pausa' : 
     status === 'completed' ? 'Concluído' : 
     'Foco';
@@ -87,7 +88,7 @@ export function FocusMiniPlayer() {
           y: prev.y + info.offset.y 
         }));
       }}
-      className="fixed bottom-32 left-8 z-[100] w-[18rem] cursor-grab active:cursor-grabbing"
+      className="fixed bottom-32 left-8 z-100 w-72 cursor-grab active:cursor-grabbing"
       style={{ x: pos.x, y: pos.y }}
     >
       <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_20px_40px_rgba(0,0,0,0.12)] border border-gray-100 p-4 flex items-center gap-4">
@@ -130,7 +131,7 @@ export function FocusMiniPlayer() {
                 onClick={() => {
                   const save = window.confirm('Encerrar sessão e salvar progresso?');
                   if (save) {
-                    session.closeAfterPersist();
+                    session.persistAndClose();
                   }
                 }} 
                 className="p-1 text-gray-300 hover:text-red-500 transition-colors"
