@@ -3,6 +3,7 @@ import { Plus, History, Circle, Clock, Trash2, Heart, Tag, AlertCircle } from 'l
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../lib/cn';
 import { EduStuff } from '../../types';
+import { parseTaskTitle } from '../../utils/smartParser';
 
 interface TaskListProps {
   todos: EduStuff[];
@@ -12,31 +13,6 @@ interface TaskListProps {
   updateStuff: (id: string, updates: Partial<EduStuff>) => Promise<void>;
   deleteStuff: (id: string) => Promise<void>;
   inputRef?: React.RefObject<HTMLInputElement | null>;
-}
-
-// Smart Parsing 2.0 (Item #14)
-const PRIORITY_REGEX = /!(alta|media|baixa)/i;
-const TAG_REGEX = /#(\w+)/g;
-const TIME_REGEX = /às\s+(\d{1,2}[:h]\d{0,2})/i;
-
-function extractTaskMetadata(title: string) {
-  const priorityMatch = title.match(PRIORITY_REGEX);
-  const timeMatch = title.match(TIME_REGEX);
-  const tags = [...title.matchAll(TAG_REGEX)].map(m => m[1]);
-  
-  let cleanTitle = title
-    .replace(PRIORITY_REGEX, '')
-    .replace(TIME_REGEX, '')
-    .replace(TAG_REGEX, '')
-    .replace(/h:/i, '')
-    .trim();
-
-  return {
-    cleanTitle,
-    priority: priorityMatch ? priorityMatch[1].toLowerCase() : null,
-    time: timeMatch ? timeMatch[1].replace('h', ':') : null,
-    tags
-  };
 }
 
 export function TaskList({ 
@@ -66,7 +42,7 @@ export function TaskList({
       <div className="space-y-2">
         <AnimatePresence mode="popLayout">
           {todos.map((todo) => {
-            const meta = extractTaskMetadata(todo.title);
+            const meta = parseTaskTitle(todo.title);
             
             return (
               <motion.div 
@@ -107,7 +83,7 @@ export function TaskList({
                     {meta.tags.map(tag => (
                       <div key={tag} className="px-1.5 py-0.5 bg-indigo-50 border border-indigo-100 rounded-md flex items-center gap-1 scale-90 origin-left">
                         <Tag size={8} className="text-indigo-500" />
-                        <span className="text-[8px] font-black text-indigo-600 uppercase">{tag}</span>
+                        <span className="text-[8px] font-black text-indigo-600 uppercase">#{tag}</span>
                       </div>
                     ))}
                     {meta.priority && meta.priority !== 'media' && (

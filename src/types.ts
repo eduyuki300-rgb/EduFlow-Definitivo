@@ -39,6 +39,20 @@ export interface Task {
   totalTime?: number; // Total time including pauses in seconds
 }
 
+export interface ActiveSession {
+  taskId: string;
+  taskTitle: string;
+  status: 'idle' | 'running' | 'paused' | 'break' | 'break-paused' | 'completed';
+  mode: 'pomodoro' | 'flowtime';
+  startTime?: any;
+  endAt?: any;
+  timeLeftAtPause?: number;
+  timeElapsed: number;
+  focusCycles: number;
+  lastSyncedLiquidTime: number;
+  updatedAt: any;
+}
+
 // ============================================================================
 // NOVO: Tipos para EduStuffsPanel (Mood Tracker, Desafio 120 Dias, To-Do List)
 // ============================================================================
@@ -63,8 +77,15 @@ export interface EduStuff {
   completedDates?: string[]; // Array of YYYY-MM-DD for heatmap
   
   // Novos campos para categorização e desafios
-  category?: EduStuffCategory;
+  category?: string;
   habitType?: EduStuffHabitType;
   progress?: number;        // Para desafios 120 dias (0-120)
   targetDays?: number;      // Meta de dias (ex: 120)
+  
+  // Detalhes Elite
+  description?: string;
+  subtasks?: Array<{ id: string; text: string; completed: boolean }>;
+  isDeferred?: boolean;
+  scheduledTime?: string;   // Formato 'HH:mm'
+  reminderSent?: boolean;
 }

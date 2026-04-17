@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Task, Status } from '../types';
 
@@ -185,35 +185,33 @@ export function useTasks(userId: string | undefined) {
     runLegacyCleanup();
   }, [isLoading, tasks, userId]);
 
-  // Função para forçar a sincronização de tudo que está no buffer
+  /**
+   * Força a sincronização imediata de todo o buffer pendente com o Firestore.
+   * Percorre todas as tarefas que possuem tempo acumulado não salvo.
+   */
   const forceSync = async () => {
-    if (pendingUpdates.size === 0 || !userId || isSyncing.current) return;
+    if (isSyncing.current || pendingUpdates.size === 0 || !userId) return;
     
     isSyncing.current = true;
     setSyncStatus('syncing');
+
+    const entries = Array.from(pendingUpdates.entries());
     
-    const updates = Array.from(pendingUpdates.entries());
-    pendingUpdates.clear();
-    saveBuffer();
-
     try {
-      const { increment } = await import('firebase/firestore');
+      await Promise.all(entries.map(async ([taskId, data]) => {
+        const docUpdates: any = { updatedAt: serverTimestamp() };
+        if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
+        if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
+        
+        await updateDoc(doc(db, 'tasks', taskId), docUpdates);
+        pendingUpdates.delete(taskId);
+      }));
       
-      await Promise.all(
-        updates.map(([taskId, data]) => {
-          const docUpdates: any = { updatedAt: serverTimestamp() };
-          if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
-          if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
-          
-          return updateDoc(doc(db, 'tasks', taskId), docUpdates);
-        })
-      );
-
+      saveBuffer();
       setSyncStatus('synced');
     } catch (err) {
-      console.error("Erro no Smart Sync:", err);
-      // Recuperação: Recolocar no buffer para tentar depois
-      updates.forEach(([taskId, data]) => {
+      console.error("[useTasks] Batch Sync Error:", err);
+      entries.forEach(([taskId, data]) => {
         const prev = pendingUpdates.get(taskId) || { liquidTime: 0, pomodoros: 0 };
         pendingUpdates.set(taskId, {
           liquidTime: prev.liquidTime + data.liquidTime,

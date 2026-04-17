@@ -66,12 +66,19 @@ export default function App() {
 
   // Recuperação EduFlow Phoenix: Métricas do Micro-Dashboard
   const { hojeCount, concluidaHojeCount, progressHoje } = React.useMemo(() => {
+    // Pegar data local hoje no formato YYYY-MM-DD para comparação precisa
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    
     const hojeTasks = tasks.filter(t => t.status === 'hoje');
     const concluidaHoje = tasks.filter(t => {
       if (t.status !== 'concluida') return false;
       if (!t.updatedAt) return false;
-      const date = t.updatedAt.toDate ? t.updatedAt.toDate() : new Date(t.updatedAt);
-      return date.toDateString() === new Date().toDateString();
+      
+      // Converte timestamp do Firebase ou string para data local YYYY-MM-DD
+      const updateDate = t.updatedAt?.toDate ? t.updatedAt.toDate() : new Date(t.updatedAt);
+      const updateDateStr = updateDate.toLocaleDateString('en-CA');
+      
+      return updateDateStr === todayStr;
     });
     
     const hCount = hojeTasks.length;
@@ -344,7 +351,7 @@ function AppContent({
       {/* Main Layout: Flex Row to accommodate EduStuffs Sidebar */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
+        <main className="flex-1 min-w-0 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
             <X size={18} /> Erro ao carregar dados: {error}
@@ -366,17 +373,20 @@ function AppContent({
               transition={{ duration: 0.2 }}
               className="h-full"
             >
-              {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} />}
+              {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} isEduStuffsOpen={isEduStuffsOpen} />}
               {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
-              {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} />}
-              {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} />}
+              {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} isEduStuffsOpen={isEduStuffsOpen} />}
+              {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} isEduStuffsOpen={isEduStuffsOpen} />}
             </motion.div>
           </AnimatePresence>
         )}
         </main>
 
         {/* Edu Stuff's Sidebar */}
-        <div className="hidden lg:flex h-full">
+        <div className={cn(
+          "hidden lg:flex h-full transition-all duration-500 ease-in-out",
+          isEduStuffsOpen ? "w-[480px]" : "w-[64px]"
+        )}>
           <EduStuffsPanel 
             isOpen={isEduStuffsOpen} 
             onToggle={toggleEduStuffs} 
@@ -389,8 +399,8 @@ function AppContent({
       <button
         onClick={openCreateModal}
         className={cn(
-          "fixed bottom-24 w-16 h-16 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-2xl glass-premium z-30 transition-all duration-500 active:scale-90 hover:scale-105 group",
-          isEduStuffsOpen ? "lg:right-[404px] right-6" : "right-6"
+          "fixed bottom-24 w-16 h-16 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-2xl glass-premium z-70 transition-all duration-500 active:scale-90 hover:scale-105 group",
+          isEduStuffsOpen ? "lg:right-[504px] right-6" : "lg:right-24 right-6"
         )}
         style={{ 
           background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
@@ -871,7 +881,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-0 bg-white relative">
+        <div className="flex-1 flex flex-col min-w-0 relative overflow-hidden bg-white">
           {/* Desktop Close Button - Adjusted position */}
           <button onClick={onClose} className="hidden sm:flex absolute top-8 right-8 p-3 bg-gray-50 border border-gray-100 rounded-full text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all z-10 active:scale-90 shadow-sm">
             <X size={24} />
@@ -1212,7 +1222,7 @@ function TaskModal({ isOpen, onClose, user, taskToEdit }: { isOpen: boolean, onC
 }
 
 // Tab Components
-function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Task) => void, userName?: string }) {
+function HojeTab({ tasks, onEdit, userName, isEduStuffsOpen }: { tasks: Task[], onEdit: (task: Task) => void, userName?: string, isEduStuffsOpen?: boolean }) {
   const [isGrouped, setIsGrouped] = React.useState(() => localStorage.getItem('eduflow_hoje_grouped') === 'true');
   const [search, setSearch] = React.useState('');
   const [sortBy, setSortBy] = React.useState<'priority' | 'effort' | 'none'>('none');
@@ -1397,7 +1407,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
                   <div className="flex-1 h-px bg-gray-100" />
                   <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length}</span>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
                   {items.map(task => (
                     <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
                   ))}
@@ -1406,7 +1416,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
             );
           })
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
             {sortedTasks.map(task => (
               <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
             ))}
@@ -1417,7 +1427,7 @@ function HojeTab({ tasks, onEdit, userName }: { tasks: Task[], onEdit: (task: Ta
   );
 }
 
-function InboxTab({ tasks, onEdit }: { tasks: Task[], onEdit: (task: Task) => void }) {
+function InboxTab({ tasks, onEdit, isEduStuffsOpen }: { tasks: Task[], onEdit: (task: Task) => void, isEduStuffsOpen?: boolean }) {
   const [isGrouped, setIsGrouped] = React.useState(() => localStorage.getItem('eduflow_inbox_grouped') !== 'false');
   const [search, setSearch] = React.useState('');
 
@@ -1951,7 +1961,7 @@ function TaskCard({ task, onEdit }: { task: Task, onEdit: () => void, key?: Reac
   );
 }
 
-function HistoricoTab({ tasks, onEdit, userId }: { tasks: Task[], onEdit: (task: Task) => void, userId: string }) {
+function HistoricoTab({ tasks, onEdit, userId, isEduStuffsOpen }: { tasks: Task[], onEdit: (task: Task) => void, userId: string, isEduStuffsOpen?: boolean }) {
   const [view, setView] = React.useState<'estudos' | 'vida'>('estudos');
   const [search, setSearch] = React.useState('');
   const [subjectFilter, setSubjectFilter] = React.useState('Todas');
@@ -2154,7 +2164,7 @@ function HistoricoTab({ tasks, onEdit, userId }: { tasks: Task[], onEdit: (task:
                     <div className="flex-1 h-px bg-gray-100" />
                     <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length} módulos</span>
                   </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
                     {items.map(task => (
                       <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
                     ))}
