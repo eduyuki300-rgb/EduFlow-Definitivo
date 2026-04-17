@@ -38,3 +38,33 @@ export interface Task {
   liquidTime?: number; // Total focused time in seconds
   totalTime?: number; // Total time including pauses in seconds
 }
+
+// ============================================================================
+// NOVO: Tipos para EduStuffsPanel (Mood Tracker, Desafio 120 Dias, To-Do List)
+// ============================================================================
+
+export type EduStuffCategory = string;
+
+export type EduStuffHabitType = 
+  | 'leitura_120'      // Desafio: 5 páginas por dia durante 120 dias
+  | 'atividade_120'    // Desafio: Atividade física por 120 dias no ano
+  | 'custom';          // Hábito personalizado criado pelo usuário
+
+export interface EduStuff {
+  id: string;
+  userId: string;
+  title: string;
+  type: 'todo' | 'habit';
+  completed: boolean;
+  streak: number;
+  lastCompletedAt: any | null; // Firestore Timestamp
+  createdAt: any; // Firestore Timestamp
+  updatedAt: any; // Firestore Timestamp
+  completedDates?: string[]; // Array of YYYY-MM-DD for heatmap
+  
+  // Novos campos para categorização e desafios
+  category?: EduStuffCategory;
+  habitType?: EduStuffHabitType;
+  progress?: number;        // Para desafios 120 dias (0-120)
+  targetDays?: number;      // Meta de dias (ex: 120)
+}

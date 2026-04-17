@@ -388,7 +388,10 @@ function AppContent({
       {/* Floating Action Button */}
       <button
         onClick={openCreateModal}
-        className="absolute bottom-24 right-6 w-16 h-16 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-2xl glass-premium z-30 transition-all active:scale-90 hover:scale-105 group"
+        className={cn(
+          "fixed bottom-24 w-16 h-16 bg-orange-500 text-white rounded-full flex items-center justify-center shadow-2xl glass-premium z-30 transition-all duration-500 active:scale-90 hover:scale-105 group",
+          isEduStuffsOpen ? "lg:right-[404px] right-6" : "right-6"
+        )}
         style={{ 
           background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)',
           boxShadow: '0 10px 25px -5px rgba(234, 88, 12, 0.4), 0 8px 10px -6px rgba(234, 88, 12, 0.4)'
