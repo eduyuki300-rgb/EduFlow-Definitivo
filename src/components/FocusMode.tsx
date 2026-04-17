@@ -13,7 +13,7 @@ function formatTime(seconds: number) {
 }
 
 export function FocusMode() {
-  const { activeTask, session, setView, setActiveTask } = useFocus();
+  const { activeTask, session, setView } = useFocus();
   
   if (!session) return null;
   
@@ -24,18 +24,16 @@ export function FocusMode() {
     timeElapsed,
     focusDuration,
     breakDuration,
-    setFocusDuration,
-    setBreakDuration,
-    isStrictMode,
-    setIsStrictMode,
     toggleTimer,
     resetTimer,
     skipToComplete,
-    focusCycles,
+    pomodoros,
+    estimatedPomodoros,
     notification,
     advanceNotification,
     persistAndClose,
     discardAndClose,
+    isLocalUpdating,
   } = session;
   
   const isRunning = status === 'running' || status === 'break';
@@ -54,29 +52,73 @@ export function FocusMode() {
     status === 'completed' ? 'Concluído' : 
     'Foco';
 
-  const pomodoros = activeTask?.pomodoros ?? 0;
-  const estimatedPomodoros = activeTask?.estimatedPomodoros ?? 4;
+  // AUDIT FIX: UI/UX - Imersão Cromática Dinâmica
+  const getBackgroundGradient = () => {
+    if (status === 'running' || status === 'completed') {
+      return isFocusMode
+        ? 'linear-gradient(135deg, #FF6B6B 0%, #EE5D5D 100%)' // Foco Quente
+        : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'; // Pausa Azul
+    }
+    if (isBreakMode) {
+      return 'linear-gradient(135deg, #10b981 0%, #059669 100%)'; // Pausa Verde Relaxante
+    }
+    // Idle / Paused (Sóbrio)
+    return 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'; 
+  };
+
+  const isLightMode = !isRunning && status !== 'completed' && !isBreakMode;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      animate={{ 
+        opacity: 1,
+        background: getBackgroundGradient()
+      }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-200 bg-white flex flex-col"
+      transition={{ duration: 1.5, ease: "easeInOut" }}
+      className="fixed inset-0 z-200 flex flex-col overflow-hidden"
     >
+      {/* 🌟 AUDIT FIX: FEEDBACK DE SYNC (Micro-spinner sutil) */}
       <AnimatePresence>
-        {notification && (
+        {isLocalUpdating && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="absolute top-8 left-1/2 -translate-x-1/2 z-50"
+            className="absolute top-8 right-8 z-210 flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 shadow-xl"
           >
-            <div className="bg-orange-500 text-white px-6 py-3 rounded-2xl shadow-lg flex items-center gap-3">
-              <span className="font-bold">{notification.title}</span>
+            <div className="w-2 h-2 bg-white rounded-full animate-pulse shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+            <span className="text-[10px] text-white font-black tracking-[0.2em] uppercase">Cloud Sync</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="absolute top-12 left-1/2 -translate-x-1/2 z-250 w-[90%] max-w-md"
+          >
+            <div className="bg-white text-gray-900 p-6 rounded-5xl shadow-2xl flex flex-col items-center gap-4 text-center border border-gray-100">
+              <div className={cn(
+                "w-12 h-12 rounded-2xl flex items-center justify-center",
+                notification.type === 'focus' ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600"
+              )}>
+                <BookOpen size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-black">{notification.title}</h3>
+                <p className="text-sm text-gray-500 font-medium">{notification.description}</p>
+              </div>
               <button 
                 onClick={advanceNotification}
-                className="bg-white text-orange-500 px-4 py-1.5 rounded-xl font-bold text-sm hover:bg-gray-100 transition-all"
+                className={cn(
+                  "w-full py-4 rounded-3xl font-black text-white transition-all active:scale-95 shadow-lg",
+                  notification.type === 'focus' ? "bg-orange-500 shadow-orange-500/30" : "bg-blue-500 shadow-blue-500/30"
+                )}
               >
                 {notification.actionLabel}
               </button>
@@ -86,168 +128,169 @@ export function FocusMode() {
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-gray-100">
+      <div className={cn(
+        "flex items-center justify-between p-8 border-b transition-colors",
+        isLightMode ? "border-gray-100" : "border-white/10"
+      )}>
         <div className="flex items-center gap-4">
           <button 
             onClick={() => {
-              if (status === 'running' || status === 'break' || status === 'paused' || status === 'break-paused') {
+              if (status !== 'idle' && status !== 'completed') {
                 const save = window.confirm('Encerrar sessão de foco?\n\nOK: Salvar progresso\nCancelar: Descartar');
-                if (save) {
-                  persistAndClose();
-                } else {
-                  discardAndClose();
-                }
+                if (save) persistAndClose();
+                else discardAndClose();
               } else {
                 setView('widget');
               }
             }}
-            className="p-3 bg-gray-50 rounded-xl text-gray-400 hover:text-gray-900 hover:bg-gray-100 transition-all"
+            className={cn(
+              "p-4 rounded-2xl transition-all active:scale-90",
+              isLightMode ? "bg-gray-50 text-gray-400 hover:text-gray-900" : "bg-white/10 text-white/50 hover:text-white"
+            )}
           >
             <X size={24} />
           </button>
           <div>
-            <h1 className="text-xl font-black text-gray-900">
+            <h1 className={cn("text-xl font-black", isLightMode ? "text-gray-900" : "text-white")}>
               {activeTask?.title || 'Foco Livre'}
             </h1>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-             Modo Imersivo
+            <p className={cn("text-[10px] font-black uppercase tracking-[0.3em]", isLightMode ? "text-gray-400" : "text-white/40")}>
+             Sessão Imersiva
             </p>
           </div>
         </div>
         
         {/* Pomodoro Dots */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {Array.from({ length: estimatedPomodoros }).map((_, i) => (
             <div
               key={i}
               className={cn(
-                "w-3 h-3 rounded-full transition-all",
+                "w-2.5 h-2.5 rounded-full transition-all duration-500",
                 i < pomodoros 
-                  ? "bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]" 
-                  : "bg-gray-200"
+                  ? "bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)]" 
+                  : (isLightMode ? "bg-gray-200" : "bg-white/20")
               )}
             />
           ))}
-          <span className="ml-2 text-xs font-bold text-gray-400">
-            {pomodoros}/{estimatedPomodoros}
-          </span>
         </div>
       </div>
 
       {/* Main Timer Area */}
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <div className="relative">
+      <div className="flex-1 flex flex-col items-center justify-center relative">
+        <div className="relative z-10">
           <div className={cn(
-            "absolute -inset-16 rounded-full blur-3xl transition-all duration-1000",
-            isRunning && isFocusMode && 'bg-orange-500/10 scale-110',
-            isRunning && isBreakMode && 'bg-blue-500/10 scale-110',
+            "absolute -inset-24 rounded-full blur-[100px] transition-all duration-1000",
+            isRunning && isFocusMode && 'bg-white/30 scale-125',
+            isRunning && isBreakMode && 'bg-white/20 scale-110',
             !isRunning && 'opacity-0'
           )} />
           
           <svg className="relative w-80 h-80 -rotate-90">
             <circle 
-              cx="160" 
-              cy="160" 
-              r="140" 
-              stroke="#f1f5f9" 
-              strokeWidth="16" 
-              fill="transparent" 
+              cx="160" cy="160" r="142" 
+              stroke={isLightMode ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.1)"}
+              strokeWidth="12" fill="transparent" 
             />
             <motion.circle
-              cx="160"
-              cy="160"
-              r="140"
-              stroke={isFocusMode ? '#f97316' : '#3b82f6'}
-              strokeWidth="16"
+              cx="160" cy="160" r="142"
+              stroke="white"
+              strokeWidth="12"
               fill="transparent"
-              strokeDasharray={2 * Math.PI * 140}
-              initial={{ strokeDashoffset: 2 * Math.PI * 140 }}
-              animate={{ strokeDashoffset: (1 - progress) * (2 * Math.PI * 140) }}
+              strokeDasharray={2 * Math.PI * 142}
+              initial={{ strokeDashoffset: 2 * Math.PI * 142 }}
+              animate={{ strokeDashoffset: (1 - progress) * (2 * Math.PI * 142) }}
               transition={{ duration: 1, ease: 'linear' }}
               strokeLinecap="round"
+              className="drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
             />
           </svg>
 
           <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {/* AUDIT FIX: UI/UX - Render Otimizado & Suave */}
             <motion.span
-              key={status}
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-7xl font-black tracking-tighter text-gray-900 tabular-nums"
+              key={Math.floor(displaySeconds / 60)} // Re-render visual apenas no minuto
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={cn(
+                "text-8xl font-black tracking-tighter tabular-nums",
+                isLightMode ? "text-gray-900" : "text-white"
+              )}
             >
-              {formatTime(displaySeconds)}
+              <span className="opacity-100">{formatTime(displaySeconds)}</span>
             </motion.span>
-            <div className={cn(
-              "mt-4 rounded-full border px-4 py-2 text-sm font-black uppercase tracking-widest",
-              isFocusMode ? "border-orange-100 bg-orange-50 text-orange-600" : "border-blue-100 bg-blue-50 text-blue-600"
-            )}>
+            
+            <motion.div 
+              animate={{ opacity: isRunning ? [0.5, 1, 0.5] : 1 }}
+              transition={{ repeat: Infinity, duration: 3 }}
+              className={cn(
+                "mt-6 rounded-full px-6 py-2 text-[10px] font-black uppercase tracking-[0.4em] backdrop-blur-md border",
+                isLightMode 
+                  ? "border-gray-100 bg-white/50 text-gray-500" 
+                  : "border-white/20 bg-white/10 text-white"
+              )}
+            >
               {statusLabel}
-            </div>
+            </motion.div>
           </div>
         </div>
       </div>
 
       {/* Controls */}
-      <div className="p-8 border-t border-gray-100">
-        <div className="flex items-center justify-center gap-6">
-          <button
-            onClick={() => {
-              if (status === 'running' || status === 'break' || status === 'paused' || status === 'break-paused') {
-                const save = window.confirm('Encerrar e salvar progresso?');
-                if (save) {
-                  persistAndClose();
-                } else {
-                  discardAndClose();
-                }
-              } else {
-                setView('widget');
-              }
-            }}
-            className="rounded-2xl border border-gray-100 bg-gray-50 p-5 text-gray-300 hover:text-red-500 transition-all active:scale-95"
-            title="Encerrar"
-          >
-            <Square size={24} />
-          </button>
-
+      <div className={cn(
+        "p-12 transition-colors",
+        isLightMode ? "bg-white border-t border-gray-100" : "bg-transparent"
+      )}>
+        <div className="flex items-center justify-center gap-8">
           <button
             onClick={resetTimer}
-            className="rounded-2xl border border-gray-100 bg-gray-50 p-5 text-gray-300 hover:text-gray-900 transition-all active:scale-95"
+            className={cn(
+              "rounded-3xl p-6 transition-all active:scale-90",
+              isLightMode ? "bg-gray-50 text-gray-400 hover:text-gray-900" : "bg-white/10 text-white/40 hover:text-white"
+            )}
             title="Reiniciar"
           >
-            <RotateCcw size={24} />
+            <RotateCcw size={28} />
           </button>
 
-          <button
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            whileHover={{ scale: 1.05 }}
             onClick={toggleTimer}
+            disabled={isLocalUpdating}
             className={cn(
-              "rounded-[3rem] p-8 text-white shadow-2xl transition-all hover:scale-105 active:scale-95",
-              isFocusMode 
-                ? "bg-orange-500 shadow-orange-500/20" 
-                : "bg-blue-500 shadow-blue-500/20"
+              "rounded-[3rem] p-10 text-white shadow-2xl transition-all duration-500",
+              isLightMode ? "bg-gray-900" : "bg-white text-gray-900",
+              isLocalUpdating && "opacity-50 cursor-wait"
             )}
           >
             {isRunning 
-              ? <Pause size={32} fill="currentColor" /> 
-              : <Play size={32} fill="currentColor" className="ml-1" />
+              ? <Pause size={40} fill="currentColor" /> 
+              : <Play size={40} fill="currentColor" className="ml-2" />
             }
-          </button>
+          </motion.button>
 
           <button
             onClick={skipToComplete}
             disabled={mode !== 'pomodoro' || status !== 'running'}
-            className="rounded-2xl border border-gray-100 bg-gray-50 p-5 text-gray-300 hover:text-gray-900 transition-all active:scale-95 disabled:opacity-30"
+            className={cn(
+              "rounded-3xl p-6 transition-all active:scale-90 disabled:opacity-10",
+              isLightMode ? "bg-gray-50 text-gray-400 hover:text-gray-900" : "bg-white/10 text-white/40 hover:text-white"
+            )}
             title="Pular"
           >
-            <SkipForward size={24} />
+            <SkipForward size={28} />
           </button>
-
-          <button
-            onClick={() => setView('mini')}
-            className="rounded-2xl border border-gray-100 bg-gray-50 p-5 text-gray-300 hover:text-gray-900 transition-all active:scale-95"
-            title="Minimizar"
-          >
-            <BookOpen size={24} />
-          </button>
+        </div>
+        
+        <div className="mt-8 flex justify-center">
+           <p className={cn(
+             "text-xs font-bold transition-opacity",
+             isLightMode ? "text-gray-400" : "text-white/30",
+             isLocalUpdating ? "opacity-100" : "opacity-0"
+           )}>
+             Sincronizando conquistas...
+           </p>
         </div>
       </div>
     </motion.div>

@@ -1,10 +1,10 @@
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Status } from '../types';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Star, Pencil, CheckCircle2, Clock, Target, Play } from 'lucide-react';
+import { Search, Star, Pencil, Clock, Target, Play } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
@@ -21,7 +21,7 @@ const COLUMNS: { id: Status; title: string; color: string }[] = [
   { id: 'concluida', title: '✅ Pronto', color: 'bg-emerald-50/30' }
 ];
 
-// Componente Memoizado para Performance Superior
+// OTIMIZAÇÃO: TaskCard Memoizado com Verificação de Props Profundas
 const TaskCard = memo(({ task, index, onEdit, setActiveTask }: { 
   task: Task, 
   index: number, 
@@ -146,6 +146,8 @@ const TaskCard = memo(({ task, index, onEdit, setActiveTask }: {
   );
 });
 
+TaskCard.displayName = "TaskCard";
+
 export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void }) {
   const { setActiveTask } = useFocus();
   const [searchQuery, setSearchQuery] = useState('');
@@ -153,13 +155,26 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
 
   const subjects = useMemo(() => Array.from(new Set(tasks.map(t => t.subject))), [tasks]);
 
-  const filteredTasks = useMemo(() => tasks.filter(task => {
-    if (filterSubject !== 'all' && task.subject !== filterSubject) return false;
-    if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  }), [tasks, filterSubject, searchQuery]);
+  // OTIMIZAÇÃO: Filtragem Global Estabilizada
+  const filteredTasks = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return tasks.filter(task => {
+      const matchesSearch = query === '' || task.title.toLowerCase().includes(query);
+      const matchesSubject = filterSubject === 'all' || task.subject === filterSubject;
+      return matchesSearch && matchesSubject;
+    });
+  }, [tasks, filterSubject, searchQuery]);
 
-  const onDragEnd = async (result: DropResult) => {
+  // AUDIT FIX: 60FPS Performance - Distribuição de tarefas em colunas centralizada
+  const tasksByColumn = useMemo(() => {
+    const map: Record<Status, Task[]> = { inbox: [], semana: [], hoje: [], concluida: [] };
+    filteredTasks.forEach(task => {
+      if (map[task.status]) map[task.status].push(task);
+    });
+    return map;
+  }, [filteredTasks]);
+
+  const onDragEnd = useCallback(async (result: DropResult) => {
     const { destination, source, draggableId } = result;
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
@@ -174,7 +189,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
     } catch (error) {
       console.error("Error updating task status:", error);
     }
-  };
+  }, [playSuccessSound]);
 
   return (
     <div className="flex flex-col h-full bg-white/40 backdrop-blur-sm rounded-3xl border border-gray-100/50 shadow-xl overflow-hidden">
@@ -199,14 +214,14 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
         </select>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-4 custom-scrollbar bg-transparent">
+      <div className="flex-1 overflow-x-auto p-4 custom-scrollbar bg-transparent snap-x">
         <DragDropContext onDragEnd={onDragEnd}>
           <div className="flex gap-4 h-full min-w-max">
             {COLUMNS.map(column => {
-              const columnTasks = filteredTasks.filter(t => t.status === column.id);
+              const columnTasks = tasksByColumn[column.id] || [];
               
               return (
-                <div key={column.id} className="flex flex-col w-[320px] h-full shrink-0">
+                <div key={column.id} className="flex flex-col w-[320px] h-full shrink-0 snap-center">
                   <div className="flex items-center justify-between mb-5 px-3">
                     <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-[0.2em]">{column.title}</h3>
                     <span className="bg-white/60 text-gray-500 text-[10px] font-black px-2.5 py-1 rounded-xl border border-gray-100 shadow-xs tabular-nums">

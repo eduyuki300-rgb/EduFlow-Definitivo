@@ -1,23 +1,54 @@
 {
-  "name": "EduFlow",
+  "name": "EduFlow: ENEM Focus & Tasks",
   "short_name": "EduFlow",
-  "description": "Seu companheiro de estudos imersivo",
+  "description": "PWA de produtividade premium com Pomodoro Cloud-Sync para o ENEM.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#a855f7",
+  "background_color": "#1A1F22",
+  "theme_color": "#FF6B6B",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIwIiBmaWxsPSIjYTg1NWY3Ii8+PHRleHQgeD0iNTAiIHk9IjY1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDAiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RkQ8L3RleHQ+PC9zdmc+",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
-      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgcng9IjIwIiBmaWxsPSIjYTg1NWY3Ii8+PHRleHQgeD0iNTAiIHk9IjY1IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iNDAiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RkQ8L3RleHQ+PC9zdmc+",
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "education"],
+  "shortcuts": [
+    {
+      "name": "Iniciar Foco",
+      "short_name": "Focar",
+      "description": "Inicia uma sessão Pomodoro imediata",
+      "url": "/?action=start-focus",
+      "icons": [{ "src": "/icon-focus.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Nova Tarefa",
+      "short_name": "Tarefa",
+      "description": "Adiciona uma nova tarefa ao Kanban",
+      "url": "/?action=new-task",
+      "icons": [{ "src": "/icon-task.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screen-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/screen-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow"
     }
   ]
 }
