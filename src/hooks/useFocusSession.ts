@@ -53,41 +53,18 @@ export interface FocusSessionApi {
 
 const PREF = 'eduflow_session_';
 
-// Helpers de leitura de config local (ainda úteis para preferências)
-function readInt(key: string, fallback: number) {
-  try {
-    const value = Number(localStorage.getItem(PREF + key));
-    return Number.isFinite(value) && value > 0 ? value : fallback;
-  } catch {
-    return fallback;
-  }
-}
+// Preference persistence helpers
+const readInt = (k: string, fb: number) => { try { const v = Number(localStorage.getItem(PREF+k)); return Number.isFinite(v) && v > 0 ? v : fb; } catch { return fb; } };
+const readBool = (k: string) => localStorage.getItem(PREF+k) === 'true';
+const readStr = <T extends string>(k: string, fb: T): T => (localStorage.getItem(PREF+k) as T) ?? fb;
 
-function readBool(key: string) {
-  try {
-    return localStorage.getItem(PREF + key) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function readStr<T extends string>(key: string, fallback: T): T {
-  try {
-    return (localStorage.getItem(PREF + key) as T) ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function createNotification(type: FocusNotification['type']): FocusNotification {
-  return {
-    id: `${type}-${Date.now()}`,
-    type,
-    title: type === 'focus' ? 'Foco Concluído!' : 'Pausa Encerrada!',
-    description: type === 'focus' ? 'Hora de recuperar as energias.' : 'Pronto para o próximo bloco?',
-    actionLabel: type === 'focus' ? 'Começar pausa' : 'Iniciar foco',
-  };
-}
+const createNotification = (type: FocusNotification['type']): FocusNotification => ({
+  id: `${type}-${Date.now()}`,
+  type,
+  title: type === 'focus' ? 'Foco Concluído!' : 'Pausa Encerrada!',
+  description: type === 'focus' ? 'Hora de recuperar as energias.' : 'Pronto para o próximo bloco?',
+  actionLabel: type === 'focus' ? 'Começar pausa' : 'Iniciar foco',
+});
 
 export function useFocusSession(
   taskId: string, 
@@ -101,71 +78,85 @@ export function useFocusSession(
   const [longBreakDuration, setLongBreakDurationState] = useState(() => readInt('longBreakDur', 900));
   const [isStrictMode, setIsStrictModeState] = useState(() => readBool('strict'));
 
-  // ESTADO DA SESSÃO
+  // SESSÃO
   const [status, setStatus] = useState<TimerStatus>('idle');
   const [timeLeft, setTimeLeft] = useState(focusDuration);
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [focusCycles, setFocusCycles] = useState(0);
-  const [sessionLiquidTime, setSessionLiquidTime] = useState(0);
   const [lastSyncedLiquidTime, setLastSyncedLiquidTime] = useState(0);
   const [notification, setNotification] = useState<FocusNotification | null>(null);
 
-  const statusRef = useRef(status);
+  // REFS PARA PRECISÃO ABSOLUTA (AUDIT FIX 3 & 4)
+  const statusRef = useRef<TimerStatus>(status);
+  const timeLeftRef = useRef(timeLeft);
+  const timeElapsedRef = useRef(timeElapsed);
+  const lastSyncedRef = useRef(lastSyncedLiquidTime);
+  const focusCyclesRef = useRef(focusCycles);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isUpdatingCloud = useRef(false);
 
-  // Sync Cloud -> Local State (Efeito de reconexão/sincronização)
+  // CONTROLADORES DE MUTEX (AUDIT FIX 1 & 2)
+  const [isLocalUpdating, setIsLocalUpdating] = useState(false);
+  const pendingCloudUpdate = useRef<ActiveSession | null>(null);
+
+  // Sync refs with state
+  useEffect(() => { 
+    statusRef.current = status; 
+    timeLeftRef.current = timeLeft;
+    timeElapsedRef.current = timeElapsed;
+    lastSyncedRef.current = lastSyncedLiquidTime;
+    focusCyclesRef.current = focusCycles;
+  }, [status, timeLeft, timeElapsed, lastSyncedLiquidTime, focusCycles]);
+
+  const applyCloudUpdate = useCallback((data: ActiveSession) => {
+    let calcTimeLeft = data.timeLeftAtPause ?? focusDuration;
+    let calcElapsed = data.timeElapsed;
+    
+    if (data.status === 'running' || data.status === 'break') {
+      const endAt = data.endAt?.toDate ? data.endAt.toDate() : new Date(data.endAt);
+      const now = new Date();
+      // +2s Latency Buffer (AUDIT FIX)
+      calcTimeLeft = Math.max(0, Math.floor((endAt.getTime() - now.getTime()) / 1000) + 2);
+      
+      const startAt = data.startTime?.toDate ? data.startTime.toDate() : new Date(data.startTime);
+      calcElapsed = Math.floor((now.getTime() - startAt.getTime()) / 1000);
+    }
+
+    setStatus(data.status);
+    setTimeLeft(calcTimeLeft);
+    setTimeElapsed(calcElapsed);
+    setFocusCycles(data.focusCycles);
+    setLastSyncedLiquidTime(data.lastSyncedLiquidTime);
+  }, [focusDuration]);
+
+  // FIX 1: Re-applies pending updates after mutex release
   useEffect(() => {
-    if (!cloudData || cloudData.taskId !== taskId) {
-      // Se não houver dados na nuvem para esta task, mantemos local ou resetamos se mudou de task
-      if (cloudData?.taskId && cloudData.taskId !== taskId) {
-         // reset local state se task mudou
-      }
+    if (!cloudData || cloudData.taskId !== taskId) return;
+    if (isLocalUpdating) {
+      pendingCloudUpdate.current = cloudData;
       return;
     }
+    applyCloudUpdate(cloudData);
+  }, [cloudData, taskId, isLocalUpdating, applyCloudUpdate]);
 
-    // Calcular tempo restante baseado no endAt do servidor
-    let calculatedTimeLeft = cloudData.timeLeftAtPause ?? focusDuration;
-    let calculatedElapsed = cloudData.timeElapsed;
-    
-    if (cloudData.status === 'running' || cloudData.status === 'break') {
-      const endAt = cloudData.endAt?.toDate ? cloudData.endAt.toDate() : new Date(cloudData.endAt);
-      const now = new Date();
-      calculatedTimeLeft = Math.max(0, Math.floor((endAt.getTime() - now.getTime()) / 1000));
-      
-      // Ajustar tempo decorrido total
-      const startTime = cloudData.startTime?.toDate ? cloudData.startTime.toDate() : new Date(cloudData.startTime);
-      calculatedElapsed = Math.floor((now.getTime() - startTime.getTime()) / 1000);
-    }
-
-    setStatus(cloudData.status);
-    statusRef.current = cloudData.status;
-    setTimeLeft(calculatedTimeLeft);
-    setTimeElapsed(calculatedElapsed);
-    setFocusCycles(cloudData.focusCycles);
-    setSessionLiquidTime(cloudData.timeElapsed); // ou usar logica de liquid
-    setLastSyncedLiquidTime(cloudData.lastSyncedLiquidTime);
-  }, [cloudData, taskId, focusDuration]);
-
-  // Sincronização Local -> Cloud (Persistência)
   const syncToCloud = useCallback(async (updates: Partial<ActiveSession>) => {
-    if (!userId || isUpdatingCloud.current) return;
-    
-    isUpdatingCloud.current = true;
+    if (!userId) return;
+    setIsLocalUpdating(true); // LOCK
     try {
       const sessionRef = doc(db, `users/${userId}/config/activeSession`);
       await setDoc(sessionRef, {
-        taskId,
-        taskTitle,
-        updatedAt: serverTimestamp(),
-        ...updates
+        taskId, taskTitle, updatedAt: serverTimestamp(), ...updates
       }, { merge: true });
     } catch (err) {
-      console.error('[useFocusSession] Sync drift:', err);
+      console.error('[FocusSession] Sync drift:', err);
     } finally {
-      isUpdatingCloud.current = false;
+      // FIX 2: Unlock only after await and apply any missed updates
+      setIsLocalUpdating(false); // UNLOCK
+      if (pendingCloudUpdate.current) {
+        applyCloudUpdate(pendingCloudUpdate.current);
+        pendingCloudUpdate.current = null;
+      }
     }
-  }, [userId, taskId, taskTitle]);
+  }, [userId, taskId, taskTitle, applyCloudUpdate]);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -174,145 +165,128 @@ export function useFocusSession(
     }
   }, []);
 
+  // FIX 4: Callback stabilization with Refs
   const completeFocusCycle = useCallback(async () => {
     clearTimer();
-    const nextCycles = focusCycles + 1;
-    setFocusCycles(nextCycles);
+    const nextCycles = focusCyclesRef.current + 1;
+    const currentElapsed = timeElapsedRef.current;
+    const currentLastSynced = lastSyncedRef.current;
+
     setStatus('completed');
-    statusRef.current = 'completed';
     setTimeLeft(0);
     setNotification(createNotification('focus'));
 
     await syncToCloud({
       status: 'completed',
       focusCycles: nextCycles,
-      timeElapsed,
-      lastSyncedLiquidTime: timeElapsed // sync final
+      timeElapsed: currentElapsed,
+      lastSyncedLiquidTime: currentElapsed
     });
     
-    // Sync Task Progress
-    syncFocusSession(taskId, timeElapsed - lastSyncedLiquidTime, 1);
-  }, [clearTimer, focusCycles, timeElapsed, lastSyncedLiquidTime, taskId, syncToCloud]);
+    await syncFocusSession(taskId, currentElapsed - currentLastSynced, 1);
+  }, [clearTimer, taskId, syncToCloud]);
+
+  const resetTimer = useCallback(async () => {
+    clearTimer();
+    setStatus('idle');
+    setTimeLeft(focusDuration);
+    setTimeElapsed(0);
+    setNotification(null);
+    setLastSyncedLiquidTime(0);
+    
+    if (userId) {
+      await deleteDoc(doc(db, `users/${userId}/config/activeSession`));
+    }
+  }, [clearTimer, focusDuration, userId]);
 
   const toggleTimer = useCallback(async () => {
     const now = new Date();
-    
-    if (status === 'idle' || status === 'paused' || status === 'completed') {
-      const duration = status === 'completed' ? focusDuration : timeLeft;
+    const currentStatus = statusRef.current;
+
+    if (currentStatus === 'idle' || currentStatus === 'paused' || currentStatus === 'completed') {
+      const duration = currentStatus === 'completed' ? focusDuration : timeLeftRef.current;
       const endAt = new Date(now.getTime() + duration * 1000);
-      
       setStatus('running');
-      statusRef.current = 'running';
-      
       await syncToCloud({
         status: 'running',
         startTime: serverTimestamp(),
         endAt: Timestamp.fromDate(endAt),
         timeLeftAtPause: null
       });
-      return;
-    }
-
-    if (status === 'running') {
+    } else if (currentStatus === 'running') {
       clearTimer();
       setStatus('paused');
-      statusRef.current = 'paused';
       await syncToCloud({
         status: 'paused',
-        timeLeftAtPause: timeLeft,
-        timeElapsed
+        timeLeftAtPause: timeLeftRef.current,
+        timeElapsed: timeElapsedRef.current
       });
-      return;
     }
+  }, [focusDuration, syncToCloud, clearTimer]);
 
-    // Logica similar para break...
-  }, [status, focusDuration, timeLeft, syncToCloud, clearTimer, timeElapsed]);
-
-  const resetTimer = useCallback(async () => {
-    clearTimer();
-    setStatus('idle');
-    statusRef.current = 'idle';
-    setTimeLeft(focusDuration);
-    setTimeElapsed(0);
-    setNotification(null);
-    
-    if (userId) {
-      const sessionRef = doc(db, `users/${userId}/config/activeSession`);
-      await deleteDoc(sessionRef);
-    }
-  }, [clearTimer, focusDuration, userId]);
-
-  // Tick do Timer (Resiliente)
+  // FIX 3: Stale-closure-free Tick with Cleanup Rigorous
   useEffect(() => {
     if (status !== 'running' && status !== 'break') {
       clearTimer();
       return;
     }
 
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
     intervalRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         const next = Math.max(0, prev - 1);
         if (next <= 0) {
-          if (status === 'running') completeFocusCycle();
+          if (statusRef.current === 'running') completeFocusCycle();
           else resetTimer();
         }
         return next;
       });
       setTimeElapsed(prev => prev + 1);
-      setSessionLiquidTime(prev => prev + 1);
     }, 1000);
 
-    return clearTimer;
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
   }, [status, clearTimer, completeFocusCycle, resetTimer]);
 
-  const formatTime = useCallback((seconds: number) => {
-    const safeSeconds = Math.max(0, Math.floor(seconds));
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const remainder = safeSeconds % 60;
-    return `${hours > 0 ? hours + ':' : ''}${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`;
+  const formatTime = useCallback((s: number) => {
+    const safe = Math.max(0, Math.floor(s));
+    const h = Math.floor(safe / 3600);
+    const m = Math.floor((safe % 3600) / 60);
+    const r = safe % 60;
+    return `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${r.toString().padStart(2, '0')}`;
   }, []);
 
   return {
-    mode,
-    setMode: setModeState,
-    focusDuration,
-    setFocusDuration: setFocusDurationState,
-    breakDuration,
-    setBreakDuration: setBreakDurationState,
-    longBreakDuration,
-    setLongBreakDuration: setLongBreakDurationState,
-    isStrictMode,
-    setIsStrictMode: setIsStrictModeState,
-    status,
-    timeLeft,
-    timeElapsed,
-    focusCycles,
-    sessionLiquidTime,
+    mode, setMode: setModeState,
+    focusDuration, setFocusDuration: setFocusDurationState,
+    breakDuration, setBreakDuration: setBreakDurationState,
+    longBreakDuration, setLongBreakDuration: setLongBreakDurationState,
+    isStrictMode, setIsStrictMode: setIsStrictModeState,
+    status, timeLeft, timeElapsed, focusCycles,
+    sessionLiquidTime: timeElapsed,
     pageTitle: status === 'running' ? `(${formatTime(timeLeft)}) ${taskTitle}` : 'EduFlow',
     progress: ((focusDuration - timeLeft) / focusDuration) * 100,
-    notification,
-    toggleTimer,
-    resetTimer,
-    skipToComplete: () => {}, // TODO
-    startBreak: () => {}, // TODO
+    notification, toggleTimer, resetTimer,
+    skipToComplete: () => {}, startBreak: () => {},
     dismissNotification: () => setNotification(null),
     advanceNotification: () => {
-      if (notification?.type === 'focus') setStatus('break'); // Simples por enquanto
+      if (notification?.type === 'focus') setStatus('break');
       else resetTimer();
     },
+    // FIX 5: Explicit LiquidTime Protection
     persistAndClose: async () => {
-       await syncRemainingFocus(taskId, timeElapsed - lastSyncedLiquidTime, 0);
+       const unsynced = timeElapsedRef.current - lastSyncedRef.current;
+       if (unsynced > 0) {
+         await syncFocusSession(taskId, unsynced, 0);
+       }
        await resetTimer();
     },
     discardAndClose: async () => await resetTimer(),
     formatTime,
   };
-}
-
-// Helper externo para sync de task
-async function syncRemainingFocus(taskId: string, seconds: number, pomos: number) {
-  if (seconds > 0 || pomos > 0) {
-    await syncFocusSession(taskId, seconds, pomos);
-  }
 }
