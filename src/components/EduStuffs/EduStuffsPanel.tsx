@@ -54,8 +54,7 @@ const MOOD_EMOJIS = [
 ];
 
 const getTodayKey = () => {
-  const now = new Date();
-  return now.toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA');
 };
 
 const getHabitIcon = (title: string) => {
@@ -117,7 +116,7 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
   }, [todos, activeTagFilter]);
 
   const { todayTasks, upcomingTasks } = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = new Date().toLocaleDateString('en-CA');
     const todayTasks: EduStuff[] = [];
     const upcomingTasks: EduStuff[] = [];
 
@@ -361,7 +360,7 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
     const tagOption = TAG_OPTIONS.find(t => t.id === task.category) || DEFAULT_TAGS[4];
     const colorData = COLOR_MAP[tagOption.color] || COLOR_MAP.slate;
     
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = new Date().toLocaleDateString('en-CA');
     const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr && !task.completed;
     const isTaskToday = task.dueDate && task.dueDate.slice(0, 10) === todayStr;
     const completedSub = task.subtasks?.filter(s => s.completed).length || 0;

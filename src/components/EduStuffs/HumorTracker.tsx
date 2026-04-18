@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Smile, Save, Edit3, Plus } from 'lucide-react';
+import { Save, Edit3, Plus } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { useEduStuffs } from '../../hooks/useEduStuffs';
 
 const MOODS = [
   { val: 1, emoji: '😔', label: 'Péssimo' },
@@ -16,34 +17,33 @@ interface HumorTrackerProps {
 }
 
 export function HumorTracker({ userId }: HumorTrackerProps) {
-  const [mood, setMood] = useState<number | null>(() => {
-    const saved = localStorage.getItem(`mood_${userId}_${new Date().toDateString()}`);
-    return saved ? parseInt(saved) : null;
-  });
+  const { dailyMood, setDailyMood } = useEduStuffs();
   
   const [moodNote, setMoodNote] = useState(() => {
-    return localStorage.getItem(`mood_note_${userId}_${new Date().toDateString()}`) || '';
+    const today = new Date().toLocaleDateString('en-CA');
+    return localStorage.getItem(`mood_note_${userId}_${today}`) || '';
   });
   
   const [isMoodNoteOpen, setIsMoodNoteOpen] = useState(false);
 
   // Auto-save mood note with debounce (Item #12)
   useEffect(() => {
+    const today = new Date().toLocaleDateString('en-CA');
     const timer = setTimeout(() => {
       if (moodNote) {
-        localStorage.setItem(`mood_note_${userId}_${new Date().toDateString()}`, moodNote);
+        localStorage.setItem(`mood_note_${userId}_${today}`, moodNote);
       }
     }, 1000);
     return () => clearTimeout(timer);
   }, [moodNote, userId]);
 
   const handleMoodSelect = (val: number) => {
-    setMood(val);
-    localStorage.setItem(`mood_${userId}_${new Date().toDateString()}`, val.toString());
+    setDailyMood(val);
   };
 
   const handleSaveMoodNote = () => {
-    localStorage.setItem(`mood_note_${userId}_${new Date().toDateString()}`, moodNote);
+    const today = new Date().toLocaleDateString('en-CA');
+    localStorage.setItem(`mood_note_${userId}_${today}`, moodNote);
     setIsMoodNoteOpen(false);
   };
 
@@ -57,12 +57,12 @@ export function HumorTracker({ userId }: HumorTrackerProps) {
             onClick={() => handleMoodSelect(m.val)}
             className={cn(
               "w-10 h-10 rounded-full flex flex-col items-center justify-center transition-all hover:scale-110 relative group",
-              mood === m.val ? "bg-orange-100 scale-110 shadow-sm" : "hover:bg-gray-50 text-gray-300"
+              dailyMood === m.val ? "bg-orange-100 scale-110 shadow-sm" : "hover:bg-gray-50 text-gray-300"
             )}
           >
             <span className={cn(
               "text-xl transition-all",
-              mood === m.val ? "filter-none" : "grayscale opacity-50"
+              dailyMood === m.val ? "filter-none" : "grayscale opacity-50"
             )}>
               {m.emoji}
             </span>
@@ -74,7 +74,7 @@ export function HumorTracker({ userId }: HumorTrackerProps) {
       </div>
 
       <AnimatePresence>
-        {mood !== null && (
+        {dailyMood !== null && (
           <motion.div 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
