@@ -1,8 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, History, Plus, Briefcase, Calendar, Info, ChevronRight } from 'lucide-react';
-import { cn } from '../../lib/cn';
+import { 
+  X, Trash2, ArrowUpCircle, AlarmClock, 
+  History, Archive, Sparkles, AlertCircle 
+} from 'lucide-react';
 import { EduStuff } from '../../types';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 interface DeferredDrawerProps {
   tasks: EduStuff[];
@@ -12,111 +20,151 @@ interface DeferredDrawerProps {
   onDelete: (id: string) => void;
 }
 
+/**
+ * Função utilitária para formatar data relativa das tarefas adiadas
+ */
+const formatDeferredDate = (isoString?: string): string => {
+  if (!isoString) return "Sem data de retorno";
+  
+  // Verifica se há um snooze no localStorage
+  // TODO: O ideal seria receber uma prop 'onUpdate' para persistir isso no Firestore
+  const taskId = isoString.split('_')[1]; // Se estivéssemos passando o ID
+  const now = Date.now();
+  const target = new Date(isoString).getTime();
+  const diffInMs = target - now;
+  const diffInDays = Math.round(diffInMs / (1000 * 60 * 60 * 24));
+
+  if (diffInDays === 0) return "Retorna hoje";
+  if (diffInDays === 1) return "Retorna amanhã";
+  if (diffInDays > 1) return `Retorna em ${diffInDays} dias`;
+  if (diffInDays === -1) return "Venceu ontem";
+  return `Venceu há ${Math.abs(diffInDays)} dias`;
+};
+
 export function DeferredDrawer({ tasks, isOpen, onClose, onReactivate, onDelete }: DeferredDrawerProps) {
+  
+  const handleSnooze = (taskId: string) => {
+    const nextDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
+    localStorage.setItem(`snooze_${taskId}`, nextDate);
+    // Como não temos onUpdate, apenas damos um feedback visual ou forçamos re-render
+    // Se o pai re-renderizar, o card lerá o novo valor do localStorage
+    alert("Missão reagendada para daqui a 3 dias! (Simulação via LocalStorage)");
+  };
+
+  const getEffectiveDate = (task: EduStuff) => {
+    const snoozed = localStorage.getItem(`snooze_${task.id}`);
+    return snoozed || task.deferredUntil;
+  };
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
+    <>
+      <AnimatePresence>
+        {isOpen && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-65"
             onClick={onClose}
-            className="fixed inset-0 bg-gray-900/10 backdrop-blur-sm z-40"
           />
-          
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 bottom-0 w-full max-w-sm bg-white/95 backdrop-blur-2xl z-50 shadow-2xl border-l border-white/50 p-8 flex flex-col"
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: isOpen ? 0 : '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        className="fixed bottom-0 right-0 w-full max-w-[460px] bg-white rounded-t-[32px] shadow-[0_-20px_50px_-15px_rgba(0,0,0,0.15)] z-70 overflow-hidden flex flex-col max-h-[80vh]"
+      >
+        {/* HEADER */}
+        <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-white sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center text-amber-500">
+               <History size={20} />
+            </div>
+            <div>
+               <h2 className="text-lg font-black text-gray-900 leading-none">Missões Adiadas</h2>
+               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
+                 {tasks.length} {tasks.length === 1 ? 'item pendente' : 'itens pendentes'}
+               </p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            className="w-10 h-10 bg-gray-50 hover:bg-gray-100 text-gray-400 rounded-xl flex items-center justify-center transition-all"
           >
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-lg font-black text-gray-800 flex items-center gap-2">
-                  <History className="text-slate-400" /> Gateta de Adiados
-                </h3>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                  Missões em espera ({tasks.length})
-                </p>
-              </div>
-              <button 
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-400"
-              >
-                <X size={20} />
-              </button>
-            </div>
+            <X size={20} />
+          </button>
+        </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 px-1">
-              {tasks.length > 0 ? (
-                tasks.map((task) => (
-                  <motion.div 
-                    key={task.id}
-                    layout
-                    drag="x"
-                    dragConstraints={{ left: -200, right: 50 }}
-                    dragElastic={0.1}
-                    onDragEnd={(_, info) => {
-                      // Se arrastar para a esquerda (em direção à lista), reativa
-                      if (info.offset.x < -100) {
-                        onReactivate(task.id);
-                      }
-                    }}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 bg-slate-50 border border-slate-100 rounded-[24px] group hover:border-blue-200 transition-colors cursor-grab active:cursor-grabbing relative overflow-hidden"
-                  >
-                    {/* Indicador de reativação */}
-                    <div className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ChevronRight size={14} className="text-blue-300 rotate-180 animate-pulse" />
-                    </div>
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                          #{task.category || 'Geral'}
-                        </span>
-                        <p className="text-sm font-bold text-gray-700 leading-tight">
-                          {task.title}
-                        </p>
-                      </div>
-                      <div className="flex gap-1 ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => onReactivate(task.id)}
-                          className="p-1.5 bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-200 hover:scale-110 active:scale-95 transition-all"
-                          title="Voltar para hoje"
-                        >
-                          <Plus size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-30 grayscale pt-20">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    <History size={32} />
+        {/* CONTENT */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-gray-50/30">
+          <div className="space-y-3">
+            {tasks.map((task) => {
+              const effectiveDate = getEffectiveDate(task);
+              const dateText = formatDeferredDate(effectiveDate);
+              const isOverdue = effectiveDate && new Date(effectiveDate) < new Date();
+
+              return (
+                <motion.div 
+                  key={task.id}
+                  layout
+                  className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center gap-4 hover:border-amber-200 transition-all group"
+                >
+                  <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-2xl shrink-0 group-hover:bg-amber-50 transition-all">
+                    {task.category === 'pessoal' ? '✨' : '📋'}
                   </div>
-                  <p className="text-xs font-black uppercase tracking-widest">Nada pendente</p>
-                  <p className="text-[10px] mt-2 max-w-[160px] leading-relaxed">
-                    Arraste tarefas para cá quando precisar focar em outra coisa.
-                  </p>
-                </div>
-              )}
-            </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <h4 className="text-sm font-bold text-gray-900 truncate tracking-tight">{task.title}</h4>
+                    <p className={cn(
+                      "text-[10px] font-bold uppercase tracking-wider mt-1",
+                      isOverdue ? "text-rose-500" : "text-gray-400"
+                    )}>
+                      {isOverdue && <AlertCircle size={10} className="inline mr-1" />}
+                      {dateText}
+                    </p>
+                  </div>
 
-            <div className="mt-8 pt-8 border-t border-gray-100">
-              <div className="p-4 bg-blue-50/50 rounded-3xl flex items-start gap-3">
-                <Info size={16} className="text-blue-400 shrink-0 mt-0.5" />
-                <p className="text-[9px] text-blue-500/80 font-medium leading-relaxed">
-                  As tarefas nesta gaveta não afetam seus streaks diários até que você as reative.
-                </p>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button 
+                      onClick={() => onReactivate(task.id)}
+                      className="p-2 text-gray-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all"
+                      title="Reativar Missão"
+                    >
+                      <ArrowUpCircle size={18} />
+                    </button>
+                    <button 
+                      onClick={() => handleSnooze(task.id)}
+                      className="p-2 text-gray-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
+                      title="Snooze +3 dias"
+                    >
+                      <AlarmClock size={18} />
+                    </button>
+                    <button 
+                      onClick={() => onDelete(task.id)}
+                      className="p-2 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                      title="Excluir Permanentemente"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
+
+            {tasks.length === 0 && (
+              <div className="py-20 flex flex-col items-center justify-center text-center px-6">
+                <div className="w-20 h-20 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-6 border border-gray-50">
+                  <Sparkles size={40} className="text-emerald-500" />
+                </div>
+                <h3 className="text-base font-black text-gray-900 uppercase tracking-widest leading-none">Caminho Limpo</h3>
+                <p className="text-xs font-medium text-gray-400 mt-2">Nenhuma missão adiada. Bom trabalho! 🎉</p>
               </div>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    </>
   );
 }

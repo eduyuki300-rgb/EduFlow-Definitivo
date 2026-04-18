@@ -11,7 +11,8 @@ export interface SubTask {
   id: string;
   title: string;
   completed: boolean;
-  items: SubTaskItem[];
+  items?: SubTaskItem[];
+  createdAt?: any;
 }
 
 export interface Task {
@@ -54,8 +55,23 @@ export interface ActiveSession {
 }
 
 // ============================================================================
-// NOVO: Tipos para EduStuffsPanel (Mood Tracker, Desafio 120 Dias, To-Do List)
+// NOVO: Tipos para EduStuffsPanel (Planner Estratégico, Mood Tracker, etc)
 // ============================================================================
+
+
+
+export interface CustomTag {
+  id: string;
+  label: string;
+  emoji: string;
+  colorClass: string;  // ex: "blue", "pink", "green" etc
+  userId: string;
+  createdAt?: any;
+}
+
+export type TaskStatus = 'todo' | 'doing' | 'blocked' | 'done';
+
+export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly';
 
 export type EduStuffCategory = string;
 
@@ -76,16 +92,26 @@ export interface EduStuff {
   updatedAt: any; // Firestore Timestamp
   completedDates?: string[]; // Array of YYYY-MM-DD for heatmap
   
-  // Novos campos para categorização e desafios
+  // Campos Legados/Existentes
   category?: string;
   habitType?: EduStuffHabitType;
   progress?: number;        // Para desafios 120 dias (0-120)
   targetDays?: number;      // Meta de dias (ex: 120)
-  
-  // Detalhes Elite
   description?: string;
-  subtasks?: Array<{ id: string; text: string; completed: boolean }>;
   isDeferred?: boolean;
   scheduledTime?: string;   // Formato 'HH:mm'
   reminderSent?: boolean;
+  
+  // NOVOS CAMPOS ESTRATÉGICOS (Claude Blueprint)
+  status?: TaskStatus;
+  dueDate?: string;          // formato ISO: "2025-12-31T18:00:00"
+  completedAt?: string;      // formato ISO
+  estimatedMinutes?: number; // ex: 30, 60, 90
+  subtasks?: SubTask[];      // Atualizado para usar a nova interface SubTask
+  recurrence?: RecurrenceType;
+  deferredUntil?: string;    // formato ISO — data/hora de retorno da adiada
+  tagId?: string;            // ID da CustomTag no Firestore
+  priority?: Priority;       // ex: 'baixa', 'media', 'alta'
+  estimatedTime?: string;    // ex: '15min', '1h', etc
+  notes?: string;            // Notas detalhadas da tarefa
 }

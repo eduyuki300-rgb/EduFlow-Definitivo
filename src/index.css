@@ -1,34 +1,53 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
+/* Tipografia Premium & Global Reset */
 @layer base {
-  /* Tipografia Premium */
   body {
-    @apply antialiased text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-950;
-    font-feature-settings: "tnum" on, "lnum" on; /* Números tabulares para o timer não pular */
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: #1a1a1b;
+    background-color: #f8fafc;
+    font-feature-settings: "cv02", "cv05", "cv08", "cv09", "cv11";
+  }
+
+  h1, h2, h3, h4, .font-premium {
+    font-family: 'Outfit', sans-serif;
+  }
+
+  /* Dark Mode Handled via CSS Variables */
+  @media (prefers-color-scheme: dark) {
+    body {
+      color: var(--color-gray-100);
+      background-color: var(--color-gray-950);
+    }
   }
 }
 
+/* Componentes Premium */
 @layer components {
-  /* Scrollbar Customizada (Invisível mas funcional) */
+  /* Scrollbar Customizada */
   .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
     height: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    @apply bg-transparent;
+    background-color: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-700 rounded-full;
+    background-color: var(--color-gray-300);
+    border-radius: 9999px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    @apply bg-gray-400 dark:bg-gray-600;
+    background-color: var(--color-gray-400);
   }
 
   /* Glassmorphism Utility */
   .glass-panel {
-    @apply bg-white/70 dark:bg-gray-900/70 backdrop-blur-lg border border-white/20 shadow-xl;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
   }
 }
 

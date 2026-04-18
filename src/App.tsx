@@ -21,6 +21,8 @@ import { FocusMode } from './components/FocusMode';
 import { FocusMiniPlayer } from './components/FocusMiniPlayer';
 import { SemanaKanban } from './components/SemanaKanban';
 import { EduStuffsPanel } from './components/EduStuffs/EduStuffsPanel';
+import { LevelUpModal } from './components/ui/LevelUpModal';
+import { HistoryView } from './components/EduStuffs/HistoryView';
 
 // Hooks & Contexto
 import { useAuth } from './hooks/useAuth';
@@ -158,10 +160,19 @@ function AppContent({
   isModalOpen, setIsModalOpen, taskToEdit, user, globalExpanded, toggleGlobalExpanded
 }: any) {
   const { activeTask, setActiveTask, session, view: focusView, setView: setFocusView } = useFocus();
+  const { progress, levelUpTriggered } = useEduStuffs();
   const [isBgMenuOpen, setIsBgMenuOpen] = useState(false);
+  const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
   const [isEduStuffsOpen, setIsEduStuffsOpen] = useState(() => {
     return localStorage.getItem('eduflow_edustuffs_open') !== 'false';
   });
+
+  // Celebração de Level Up
+  useEffect(() => {
+    if (levelUpTriggered) {
+      setIsLevelModalOpen(true);
+    }
+  }, [levelUpTriggered]);
 
   // Auto-collapse sidebar during focus
   useEffect(() => {
@@ -469,6 +480,13 @@ function AppContent({
         )}
         {activeTask && focusView === 'mini' && (
           <FocusMiniPlayer key={`mini-${activeTask.id}`} />
+        )}
+
+        {isLevelModalOpen && progress && (
+          <LevelUpModal 
+            level={progress.level}
+            onClose={() => setIsLevelModalOpen(false)}
+          />
         )}
       </AnimatePresence>
     </div>
@@ -1968,7 +1986,7 @@ function HistoricoTab({ tasks, onEdit, userId, isEduStuffsOpen }: { tasks: Task[
   const [periodFilter, setPeriodFilter] = React.useState('all'); // all, today, week, month
   const [sortBy, setSortBy] = React.useState<'newest' | 'oldest' | 'effort'>('newest');
 
-  const { stuffs } = useEduStuffs(userId);
+  const { stuffs } = useEduStuffs();
 
   const completedTasks = tasks.filter(t => t.status === 'concluida');
 
@@ -2148,30 +2166,39 @@ function HistoricoTab({ tasks, onEdit, userId, isEduStuffsOpen }: { tasks: Task[
                 </select>
               </div>
             </div>
-          </div>
-          
-          {/* Grouped List */}
-          <div className="space-y-12">
-            {groupedTasks.length === 0 ? (
-              <div className="text-center py-20 opacity-30">
-                <p className="text-sm font-bold uppercase tracking-widest">Nenhum registro encontrado para estes filtros</p>
-              </div>
-            ) : (
-              groupedTasks.map(([label, items]) => (
-                <div key={label} className="space-y-6">
-                  <div className="flex items-center gap-4 px-2">
-                    <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
-                    <div className="flex-1 h-px bg-gray-100" />
-                    <span className="text-[10px] font-bold text-gray-300 leading-none">{items.length} módulos</span>
-                  </div>
-                  <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
-                    {items.map(task => (
-                      <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-                    ))}
-                  </div>
+
+            {/* CONTENT AREA */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mt-8">
+              {view === 'estudos' ? (
+                <HistoryView stuffs={stuffs} tasks={tasks} />
+              ) : (
+                <div className="space-y-10">
+                  {(Object.entries(groupedTasks) as [string, Task[]][]).map(([label, dayTasks]) => (
+                    <div key={label} className="space-y-4">
+                      <div className="flex items-center gap-4 sticky top-0 bg-white/80 backdrop-blur-md py-3 z-20 px-4 -mx-4 group">
+                        <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
+                        <div className="flex-1 h-px bg-gray-100" />
+                        <span className="text-[10px] font-bold text-gray-300 leading-none">{dayTasks.length} módulos</span>
+                      </div>
+                      
+                      <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
+                        {dayTasks.map(task => (
+                          <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {filteredTasks.length === 0 && (
+                    <div className="py-24 text-center opacity-30 flex flex-col items-center">
+                      <Target size={40} className="mb-4" />
+                      <p className="text-sm font-bold uppercase tracking-widest">Nenhuma missão encontrada</p>
+                    </div>
+                  )}
                 </div>
-              ))
-            )}
+              )}
+            </div>
           </div>
         </>
       ) : (
