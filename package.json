@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "health-check": "tsx scripts/health-check.ts",
     "start": "node server.ts"
   },
   "dependencies": {

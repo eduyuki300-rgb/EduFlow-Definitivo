@@ -198,7 +198,7 @@ export function HistoryView({ stuffs, tasks = [] }: HistoryViewProps) {
             {completedTodos.length > 0 ? (
               completedTodos.slice(0, 15).map((todo, idx) => (
                 <motion.div 
-                  key={todo.id}
+                  key={todo.id || `timeline-${idx}`}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.05 }}

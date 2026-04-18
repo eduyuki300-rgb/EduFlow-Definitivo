@@ -11,8 +11,8 @@ function isOwner(userId) {
 
 function isValidTask(data) {
   return data.keys().hasAll(['title', 'subject', 'priority', 'status', 'userId', 'createdAt']) &&
-         data.title is string && data.title.size() >= 1 && data.title.size() <= 300 &&
-         data.subject is string && data.subject.size() >= 1 &&
+         data.title is string && data.title.size() >= 1 && data.title.size() <= 150 &&
+         data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 50 &&
          data.userId == request.auth.uid &&
          data.createdAt is timestamp &&
          (!('subtasks' in data) || data.subtasks is list) &&

@@ -23,6 +23,8 @@ import { SemanaKanban } from './components/SemanaKanban';
 import { EduStuffsPanel } from './components/EduStuffs/EduStuffsPanel';
 import { LevelUpModal } from './components/ui/LevelUpModal';
 import { HistoryView } from './components/EduStuffs/HistoryView';
+import { DebugConsole } from './components/ui/DebugConsole';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 // Hooks & Contexto
 import { useAuth } from './hooks/useAuth';
@@ -132,24 +134,27 @@ export default function App() {
   }
 
   return (
-    <FocusProvider tasks={tasks}>
-      <AppContent 
-        activeTab={activeTab} setActiveTab={setActiveTab}
-        bgEffect={bgEffect} setBgEffect={setBgEffect}
-        tasks={tasks} isLoading={isLoading} error={error}
-        syncStatus={syncStatus}
-        progressHoje={progressHoje}
-        hojeCount={hojeCount}
-        concluidaHojeCount={concluidaHojeCount}
-        openCreateModal={openCreateModal}
-        openEditModal={openEditModal}
-        isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen}
-        taskToEdit={taskToEdit}
-        user={user}
-        globalExpanded={globalExpanded}
-        toggleGlobalExpanded={toggleGlobalExpanded}
-      />
-    </FocusProvider>
+    <ErrorBoundary>
+      <FocusProvider tasks={tasks}>
+        <AppContent 
+          activeTab={activeTab} setActiveTab={setActiveTab}
+          bgEffect={bgEffect} setBgEffect={setBgEffect}
+          tasks={tasks} isLoading={isLoading} error={error}
+          syncStatus={syncStatus}
+          progressHoje={progressHoje}
+          hojeCount={hojeCount}
+          concluidaHojeCount={concluidaHojeCount}
+          openCreateModal={openCreateModal}
+          openEditModal={openEditModal}
+          isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen}
+          taskToEdit={taskToEdit}
+          user={user}
+          globalExpanded={globalExpanded}
+          toggleGlobalExpanded={toggleGlobalExpanded}
+        />
+      </FocusProvider>
+      <DebugConsole />
+    </ErrorBoundary>
   );
 }
 
@@ -2177,8 +2182,8 @@ function HistoricoTab({ tasks, onEdit, userId, isEduStuffsOpen }: { tasks: Task[
                     </div>
                     
                     <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
-                      {dayTasks.map(task => (
-                        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                      {dayTasks.map((task, idx) => (
+                        <TaskCard key={task.id || `hist-${idx}`} task={task} onEdit={() => onEdit(task)} />
                       ))}
                     </div>
                   </div>
