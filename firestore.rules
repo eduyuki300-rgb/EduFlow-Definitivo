@@ -1,48 +1,75 @@
 rules_version = '2';
-
 service cloud.firestore {
-  match /databases/{database}/documents {
-    
-    // Helper Functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
+match /databases/{database}/documents {
+function isAuthenticated() {
+  return request.auth != null;
+}
 
-    function isValidString(field, minLen, maxLen) {
-      return request.resource.data[field] is string &&
-             request.resource.data[field].size() >= minLen &&
-             request.resource.data[field].size() <= maxLen;
-    }
+function isOwner(userId) {
+  return isAuthenticated() && request.auth.uid == userId;
+}
 
-    function isValidTask(data) {
-      // Campos obrigatórios básicos
-      return data.keys().hasAll(['title', 'subject', 'priority', 'status', 'userId', 'createdAt']) &&
-             isValidString('title', 1, 300) &&
-             isValidString('subject', 1, 100) &&
-             // Flexibilidade para prioridades e status
-             data.userId == request.auth.uid &&
-             data.createdAt is timestamp &&
-             // Validação de tipos para campos opcionais (apenas se presentes)
-             (!('subtasks' in data) || data.subtasks is list) &&
-             (!('notes' in data) || data.notes is string) &&
-             (!('pomodoros' in data) || data.pomodoros is number) &&
-             (!('liquidTime' in data) || data.liquidTime is number);
-    }
+function isValidTask(data) {
+  return data.keys().hasAll(['title', 'subject', 'priority', 'status', 'userId', 'createdAt']) &&
+         data.title is string && data.title.size() >= 1 && data.title.size() <= 300 &&
+         data.subject is string && data.subject.size() >= 1 &&
+         data.userId == request.auth.uid &&
+         data.createdAt is timestamp &&
+         (!('subtasks' in data) || data.subtasks is list) &&
+         (!('notes' in data) || data.notes is string) &&
+         (!('pomodoros' in data) || data.pomodoros is number) &&
+         (!('liquidTime' in data) || data.liquidTime is number);
+}
 
-    match /tasks/{taskId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      
-      allow create: if isAuthenticated() && 
-                    isValidTask(request.resource.data);
-                    
-      allow update: if isAuthenticated() && 
-                    resource.data.userId == request.auth.uid &&
-                    isValidTask(request.resource.data) &&
-                    request.resource.data.userId == resource.data.userId &&
-                    // Ensure createdAt is never changed
-                    request.resource.data.createdAt == resource.data.createdAt;
-                    
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
-    }
+// ── TASKS (missões de estudo) ──────────────────────────────────
+match /tasks/{taskId} {
+  allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow create: if isAuthenticated() && isValidTask(request.resource.data);
+  allow update: if isAuthenticated() && 
+                resource.data.userId == request.auth.uid &&
+                isValidTask(request.resource.data) &&
+                request.resource.data.userId == resource.data.userId &&
+                request.resource.data.createdAt == resource.data.createdAt;
+  allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+}
+
+// ── EDU STUFFS (tarefas pessoais, hábitos) ────────────────────
+match /eduStuffs/{stuffId} {
+  allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+  allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+}
+
+// ── USER TAGS (tags customizadas) ─────────────────────────────
+match /userTags/{tagId} {
+  allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+  allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+}
+
+// ── USERS (perfil, XP, streak) ───────────────────────────────
+match /users/{userId} {
+  allow read, write: if isOwner(userId);
+
+  // Subcoleção de moods diários
+  match /dailyMoods/{moodId} {
+    allow read, write: if isOwner(userId);
   }
+  
+  // Subcoleção de sessões de foco
+  match /focusSessions/{sessionId} {
+    allow read, write: if isOwner(userId);
+  }
+}
+
+// ── ACTIVE SESSIONS (Pomodoro em tempo real) ─────────────────
+match /activeSessions/{sessionId} {
+  allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+  allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+  allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+}
+}
 }

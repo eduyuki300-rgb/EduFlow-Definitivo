@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Trash2, ArrowUpCircle, AlarmClock, 
@@ -43,12 +43,13 @@ const formatDeferredDate = (isoString?: string): string => {
 
 export function DeferredDrawer({ tasks, isOpen, onClose, onReactivate, onDelete }: DeferredDrawerProps) {
   
+  const [snoozedId, setSnoozedId] = useState<string | null>(null);
+
   const handleSnooze = (taskId: string) => {
     const nextDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
     localStorage.setItem(`snooze_${taskId}`, nextDate);
-    // Como não temos onUpdate, apenas damos um feedback visual ou forçamos re-render
-    // Se o pai re-renderizar, o card lerá o novo valor do localStorage
-    alert("Missão reagendada para daqui a 3 dias! (Simulação via LocalStorage)");
+    setSnoozedId(taskId);
+    setTimeout(() => setSnoozedId(null), 2000);
   };
 
   const getEffectiveDate = (task: EduStuff) => {
@@ -134,12 +135,17 @@ export function DeferredDrawer({ tasks, isOpen, onClose, onReactivate, onDelete 
                     >
                       <ArrowUpCircle size={18} />
                     </button>
-                    <button 
-                      onClick={() => handleSnooze(task.id)}
-                      className="p-2 text-gray-300 hover:text-amber-500 hover:bg-amber-50 rounded-lg transition-all"
-                      title="Snooze +3 dias"
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleSnooze(task.id); }}
+                      className={cn(
+                        "text-[9px] font-black uppercase flex items-center gap-1 px-2 py-1 rounded-lg transition-all",
+                        snoozedId === task.id
+                          ? "bg-emerald-100 text-emerald-600"
+                          : "bg-amber-50 hover:bg-amber-100 text-amber-600"
+                      )}
                     >
-                      <AlarmClock size={18} />
+                      <AlarmClock size={10} />
+                      {snoozedId === task.id ? "Reagendado ✓" : "+3 dias"}
                     </button>
                     <button 
                       onClick={() => onDelete(task.id)}

@@ -32,10 +32,7 @@ const LEVEL_BASE_XP = 100;
 const LEVEL_GROWTH_FACTOR = 1.6; // Ajustado para ser levemente mais desafiador
 
 const getLocalISODate = () => {
-  const d = new Date();
-  const offset = d.getTimezoneOffset();
-  const localDate = new Date(d.getTime() - (offset * 60 * 1000));
-  return localDate.toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA');
 };
 
 export const useEduStuffs = () => {
@@ -153,8 +150,7 @@ export const useEduStuffs = () => {
     if (lastLocal !== todayLocal) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const offset = yesterday.getTimezoneOffset();
-      const yesterdayLocal = new Date(yesterday.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+      const yesterdayLocal = yesterday.toLocaleDateString('en-CA');
       
       if (lastLocal === yesterdayLocal) {
         newStreak += 1;
@@ -242,9 +238,10 @@ export const useEduStuffs = () => {
     newDates = Array.from(new Set(newDates)).sort();
 
     // Streak logic para o hábito individual
+    const toLocalDateStr = (d: Date) => d.toLocaleDateString('en-CA');
     let streak = 0;
     const checkDate = new Date();
-    while (newDates.includes(checkDate.toISOString().split('T')[0])) {
+    while (newDates.includes(toLocalDateStr(checkDate))) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
     }
@@ -309,8 +306,7 @@ export const useEduStuffs = () => {
     if (!user) return;
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const offset = yesterday.getTimezoneOffset();
-    const yesterdayLocal = new Date(yesterday.getTime() - (offset * 60 * 1000)).toISOString().split('T')[0];
+    const yesterdayLocal = yesterday.toLocaleDateString('en-CA');
     
     try {
       await updateDoc(doc(db, 'users', user.uid), {

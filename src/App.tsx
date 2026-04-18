@@ -188,9 +188,13 @@ function AppContent({
   };
 
   return (
-    <div className="flex flex-col h-dvh w-full md:max-w-full lg:max-w-[98%] xl:max-w-[96%] mx-auto bg-transparent overflow-hidden relative shadow-2xl sm:h-screen border-x border-white/20">
-      <BackgroundEffects effect={bgEffect} />
-      <PomodoroWidget tasks={tasks} />
+    <div className="h-dvh w-full md:max-w-full lg:max-w-[98%] xl:max-w-[96%] mx-auto bg-transparent overflow-hidden relative shadow-2xl sm:h-screen border-x border-white/20">
+      <div className={cn(
+        "flex flex-col h-full w-full transition-all duration-500 ease-in-out",
+        isEduStuffsOpen ? "lg:pr-[480px]" : "pr-0"
+      )}>
+        <BackgroundEffects effect={bgEffect} />
+        <PomodoroWidget tasks={tasks} />
 
       {/* HEADER UNIFICADO: PREMIUM PAPER DESIGN */}
       <header className="px-5 py-4 flex items-center justify-between border-b border-black/5 bg-[#FCF9F2]/80 backdrop-blur-xl sticky top-0 z-60 shadow-sm">
@@ -358,53 +362,44 @@ function AppContent({
            </button>
         </div>
       </header>
-
-      {/* Main Layout: Flex Row to accommodate EduStuffs Sidebar */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Main Content Area */}
+        {/* Main Layout Area inside the Padding Wrapper */}
         <main className="flex-1 min-w-0 overflow-y-auto p-6 pb-32 relative custom-scrollbar">
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
-            <X size={18} /> Erro ao carregar dados: {error}
-          </div>
-        )}
-        
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-3 text-text-muted animate-in fade-in duration-500">
-            <Loader2 size={40} className="animate-spin text-pastel-blue" />
-            <p className="font-bold text-sm tracking-wide">Sincronizando com a nuvem...</p>
-          </div>
-        ) : (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
-            >
-              {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} isEduStuffsOpen={isEduStuffsOpen} />}
-              {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
-              {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} isEduStuffsOpen={isEduStuffsOpen} />}
-              {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} isEduStuffsOpen={isEduStuffsOpen} />}
-            </motion.div>
-          </AnimatePresence>
-        )}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
+              <X size={18} /> Erro ao carregar dados: {error}
+            </div>
+          )}
+          
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-64 gap-3 text-text-muted animate-in fade-in duration-500">
+              <Loader2 size={40} className="animate-spin text-pastel-blue" />
+              <p className="font-bold text-sm tracking-wide">Sincronizando com a nuvem...</p>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="h-full"
+              >
+                {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} isEduStuffsOpen={isEduStuffsOpen} />}
+                {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
+                {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} isEduStuffsOpen={isEduStuffsOpen} />}
+                {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} isEduStuffsOpen={isEduStuffsOpen} />}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </main>
-
-        {/* Edu Stuff's Sidebar */}
-        <div className={cn(
-          "hidden lg:flex h-full transition-all duration-500 ease-in-out",
-          isEduStuffsOpen ? "w-[480px]" : "w-[64px]"
-        )}>
-          <EduStuffsPanel 
-            isOpen={isEduStuffsOpen} 
-            onToggle={toggleEduStuffs} 
-            userId={user.uid} 
-          />
-        </div>
       </div>
+
+      <EduStuffsPanel 
+        isOpen={isEduStuffsOpen} 
+        onToggle={toggleEduStuffs} 
+        userId={user.uid} 
+      />
 
       {/* Floating Action Button */}
       <button
@@ -2169,35 +2164,33 @@ function HistoricoTab({ tasks, onEdit, userId, isEduStuffsOpen }: { tasks: Task[
 
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mt-8">
-              {view === 'estudos' ? (
-                <HistoryView stuffs={stuffs} tasks={tasks} />
-              ) : (
-                <div className="space-y-10">
-                  {(Object.entries(groupedTasks) as [string, Task[]][]).map(([label, dayTasks]) => (
-                    <div key={label} className="space-y-4">
-                      <div className="flex items-center gap-4 sticky top-0 bg-white/80 backdrop-blur-md py-3 z-20 px-4 -mx-4 group">
-                        <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
-                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
-                        <div className="flex-1 h-px bg-gray-100" />
-                        <span className="text-[10px] font-bold text-gray-300 leading-none">{dayTasks.length} módulos</span>
-                      </div>
-                      
-                      <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
-                        {dayTasks.map(task => (
-                          <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
-                        ))}
-                      </div>
+              <HistoryView stuffs={stuffs} tasks={tasks} />
+              
+              <div className="space-y-10 mt-12">
+                {(Object.entries(groupedTasks) as [string, Task[]][]).map(([label, dayTasks]) => (
+                  <div key={label} className="space-y-4">
+                    <div className="flex items-center gap-4 sticky top-0 bg-white/80 backdrop-blur-md py-3 z-20 px-4 -mx-4 group">
+                      <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
+                      <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{label}</h3>
+                      <div className="flex-1 h-px bg-gray-100" />
+                      <span className="text-[10px] font-bold text-gray-300 leading-none">{dayTasks.length} módulos</span>
                     </div>
-                  ))}
+                    
+                    <div className={cn("grid grid-cols-1 gap-4", !isEduStuffsOpen ? "lg:grid-cols-2" : "grid-cols-1")}>
+                      {dayTasks.map(task => (
+                        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
-                  {filteredTasks.length === 0 && (
-                    <div className="py-24 text-center opacity-30 flex flex-col items-center">
-                      <Target size={40} className="mb-4" />
-                      <p className="text-sm font-bold uppercase tracking-widest">Nenhuma missão encontrada</p>
-                    </div>
-                  )}
-                </div>
-              )}
+                {filteredTasks.length === 0 && (
+                  <div className="py-24 text-center opacity-30 flex flex-col items-center">
+                    <Target size={40} className="mb-4" />
+                    <p className="text-sm font-bold uppercase tracking-widest">Nenhuma missão encontrada</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </>

@@ -4,7 +4,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { Task, Status } from '../types';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Star, Pencil, Clock, Target, Play } from 'lucide-react';
+import { Search, Star, Pencil, Clock, Target, Play, CircleOff } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
@@ -216,12 +216,12 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
 
       <div className="flex-1 overflow-x-auto p-4 custom-scrollbar bg-transparent snap-x">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-4 h-full min-w-max">
+          <div className="flex gap-3 overflow-x-auto pb-4 min-h-0 flex-1 custom-scrollbar snap-x">
             {COLUMNS.map(column => {
               const columnTasks = tasksByColumn[column.id] || [];
               
               return (
-                <div key={column.id} className="flex flex-col w-[320px] h-full shrink-0 snap-center">
+                <div key={column.id} className="flex flex-col shrink-0 w-72 snap-start">
                   <div className="flex items-center justify-between mb-5 px-3">
                     <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-[0.2em]">{column.title}</h3>
                     <span className="bg-white/60 text-gray-500 text-[10px] font-black px-2.5 py-1 rounded-xl border border-gray-100 shadow-xs tabular-nums">
@@ -235,27 +235,26 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 rounded-4xl p-3 transition-all overflow-y-auto custom-scrollbar border border-transparent min-h-[500px]",
+                          "flex-1 min-h-[200px] space-y-3 p-2 rounded-4xl transition-all overflow-y-auto custom-scrollbar border border-transparent",
                           column.color,
                           snapshot.isDraggingOver && "bg-orange-50/20 border-orange-500/10"
                         )}
                       >
-                        {columnTasks.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center h-full opacity-30 select-none grayscale">
-                            <Target size={32} className="text-gray-300 mb-2" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Vazio</p>
+                        {columnTasks.length === 0 && (
+                          <div className="flex flex-col items-center justify-center py-10 opacity-20 gap-2">
+                            <CircleOff size={24} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">Vazio</span>
                           </div>
-                        ) : (
-                          columnTasks.map((task, index) => (
-                            <TaskCard 
-                              key={task.id} 
-                              task={task} 
-                              index={index} 
-                              onEdit={onEdit} 
-                              setActiveTask={setActiveTask} 
-                            />
-                          ))
                         )}
+                        {columnTasks.map((task, index) => (
+                          <TaskCard 
+                            key={task.id} 
+                            task={task} 
+                            index={index} 
+                            onEdit={onEdit} 
+                            setActiveTask={setActiveTask} 
+                          />
+                        ))}
                         {provided.placeholder}
                       </div>
                     )}
