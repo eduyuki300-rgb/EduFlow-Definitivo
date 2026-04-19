@@ -4,7 +4,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea
 import { Task, Status } from '../types';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Star, Pencil, Clock, Target, Play, CircleOff } from 'lucide-react';
+import { Search, Star, Pencil, Clock, Target, Play, CircleOff, Plus } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
@@ -204,14 +204,19 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
             className="w-full pl-9 pr-4 py-2 rounded-xl border border-gray-100 text-sm focus:outline-none focus:border-orange-500/30 bg-white"
           />
         </div>
-        <select 
-          value={filterSubject} 
-          onChange={(e) => setFilterSubject(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-gray-100 text-sm bg-white cursor-pointer w-full sm:w-auto font-medium"
-        >
-          <option value="all">Todas as Matérias</option>
-          {subjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
-        </select>
+        <div className="relative flex items-center w-full sm:w-auto">
+          <select 
+            value={filterSubject} 
+            onChange={(e) => setFilterSubject(e.target.value)}
+            className="px-4 py-2 pr-9 rounded-xl border border-gray-100 text-[11px] uppercase tracking-widest bg-white cursor-pointer w-full sm:w-auto font-bold text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-500/10 transition-all appearance-none shadow-sm"
+          >
+            <option value="all">Todas as Matérias</option>
+            {subjects.map(sub => <option key={sub} value={sub}>{sub}</option>)}
+          </select>
+          <div className="absolute right-3 pointer-events-none text-gray-400">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col p-4 bg-transparent">
@@ -241,9 +246,11 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                         )}
                       >
                         {columnTasks.length === 0 && (
-                          <div className="flex flex-col items-center justify-center h-full opacity-30 gap-3 py-10">
-                            <CircleOff size={24} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Vazio</span>
+                          <div className="flex flex-col items-center justify-center p-8 rounded-3xl border-2 border-dashed border-black/5 bg-black/2 flex-1">
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm mb-3">
+                              <Plus size={16} className="text-gray-300" />
+                            </div>
+                            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest text-center">Solte algo aqui</span>
                           </div>
                         )}
                         {columnTasks.map((task, index) => (

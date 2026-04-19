@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { 
   X, Plus, Trash2, BookOpen, BarChart2, Sparkles, Star, LayoutList, Loader2 
 } from 'lucide-react';
@@ -44,6 +45,7 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
   const [jsonImportText, setJsonImportText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [shake, setShake] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -158,7 +160,12 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || isSubmitting) return;
+    if (!title.trim()) {
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
     const cleanedSubtasks = subtasks
@@ -253,9 +260,9 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
               <button 
                 onClick={handleDelete} 
                 disabled={isSubmitting || isDeleting}
-                className="w-full mt-2 py-2 text-red-500 text-sm font-bold hover:bg-red-50 rounded-xl disabled:opacity-50"
+                className="w-full mt-2 py-3 text-red-500 text-sm font-bold hover:bg-red-50 hover:text-red-600 transition-colors rounded-xl disabled:opacity-50 border border-transparent hover:border-red-100"
               >
-                {isDeleting ? 'Excluindo...' : 'Excluir'}
+                {isDeleting ? 'Excluindo...' : 'Excluir Missão'}
               </button>
             )}
           </div>
@@ -268,7 +275,19 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
               <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-400 mb-3 uppercase tracking-widest">📚 Nome do Módulo</label>
-                  <input autoFocus type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: Genética" className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-6 py-4 text-gray-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xl placeholder:text-gray-300" />
+                  <motion.div animate={shake ? { x: [-10, 10, -10, 10, 0] } : {}} transition={{ duration: 0.4 }}>
+                    <input 
+                      autoFocus 
+                      type="text" 
+                      value={title} 
+                      onChange={(e) => setTitle(e.target.value)} 
+                      placeholder="Ex: Genética (Obrigatório)" 
+                      className={cn(
+                        "w-full bg-gray-50/50 border border-transparent hover:border-gray-200 rounded-2xl px-6 py-4 text-gray-900 font-bold focus:outline-none focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-200 text-xl placeholder:text-gray-300 transition-all shadow-sm",
+                        shake && "border-red-400 bg-red-50 focus:border-red-400"
+                      )} 
+                    />
+                  </motion.div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-text-muted mb-3 uppercase tracking-widest opacity-50">🏷️ Matéria</label>
@@ -283,19 +302,29 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold text-text-muted mb-2 uppercase tracking-wider">⚡ Prioridade</label>
-                    <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 appearance-none font-semibold text-sm">
-                      <option value="baixa">Baixa</option>
-                      <option value="media">Média</option>
-                      <option value="alta">Alta</option>
-                    </select>
+                    <div className="relative flex items-center">
+                      <select value={priority} onChange={(e) => setPriority(e.target.value as Priority)} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 pr-10 text-gray-900 appearance-none font-semibold text-sm cursor-pointer hover:bg-gray-100/50 transition-colors">
+                        <option value="baixa">Baixa</option>
+                        <option value="media">Média</option>
+                        <option value="alta">Alta</option>
+                      </select>
+                      <div className="absolute right-4 pointer-events-none text-gray-400">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-text-muted mb-2 uppercase tracking-widest opacity-50">🎯 Destino</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 appearance-none font-semibold text-sm">
-                      <option value="inbox">📥 Inbox</option>
-                      <option value="hoje">🎯 Hoje</option>
-                      <option value="semana">🗓️ Semana</option>
-                    </select>
+                    <div className="relative flex items-center">
+                      <select value={status} onChange={(e) => setStatus(e.target.value as Status)} className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 pr-10 text-gray-900 appearance-none font-semibold text-sm cursor-pointer hover:bg-gray-100/50 transition-colors">
+                        <option value="inbox">📥 Inbox</option>
+                        <option value="hoje">🎯 Hoje</option>
+                        <option value="semana">🗓️ Semana</option>
+                      </select>
+                      <div className="absolute right-4 pointer-events-none text-gray-400">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -322,21 +351,21 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
                     {subtasks.map((group) => (
                       <div key={group.id} className="bg-white rounded-3xl border border-gray-100 p-5 shadow-sm">
                         <div className="flex items-center gap-4 mb-4">
-                          <input type="text" value={group.title} onChange={(e) => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, title: e.target.value } : g))} placeholder="Grupo" className="flex-1 bg-transparent font-bold text-gray-900 text-lg focus:outline-none" />
-                          <button onClick={() => setSubtasks(subtasks.filter(g => g.id !== group.id))}><Trash2 size={18} /></button>
+                          <input type="text" value={group.title} onChange={(e) => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, title: e.target.value } : g))} placeholder="Grupo" className="flex-1 bg-transparent font-black text-gray-900 text-lg focus:outline-none placeholder:text-gray-300" />
+                          <button onClick={() => setSubtasks(subtasks.filter(g => g.id !== group.id))} className="text-gray-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           {group.items.map(item => (
-                            <div key={item.id} className="flex items-center gap-2">
-                              <input type="text" value={item.title} onChange={(e) => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, items: g.items.map(it => it.id === item.id ? { ...it, title: e.target.value } : it) } : g))} className="flex-1 text-sm text-gray-700 bg-transparent border-b border-transparent focus:border-gray-200" />
-                              <button onClick={() => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, items: g.items.filter(it => it.id !== item.id) } : g))}><X size={14} /></button>
+                            <div key={item.id} className="flex items-center gap-3 bg-gray-50/50 p-2 rounded-xl border border-transparent focus-within:bg-white focus-within:border-indigo-100 focus-within:shadow-sm transition-all group/item">
+                              <input type="text" value={item.title} onChange={(e) => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, items: g.items.map(it => it.id === item.id ? { ...it, title: e.target.value } : it) } : g))} placeholder="Acesse o material, Leia a página X..." className="flex-1 text-sm font-medium text-gray-700 bg-transparent focus:outline-none placeholder:text-gray-400" />
+                              <button onClick={() => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, items: g.items.filter(it => it.id !== item.id) } : g))} className="opacity-0 group-hover/item:opacity-100 text-gray-400 hover:text-red-500 transition-all"><X size={14} /></button>
                             </div>
                           ))}
-                          <button onClick={() => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, items: [...g.items, { id: crypto.randomUUID(), title: '', completed: false }] } : g))} className="text-[10px] font-bold text-orange-500">+ Item</button>
+                          <button onClick={() => setSubtasks(prev => prev.map(g => g.id === group.id ? { ...g, items: [...g.items, { id: crypto.randomUUID(), title: '', completed: false }] } : g))} className="text-[10px] font-bold text-orange-500 hover:text-orange-600 transition-colors uppercase tracking-widest flex items-center gap-1 mt-2"><Plus size={12}/> Adicionar Item</button>
                         </div>
                       </div>
                     ))}
-                    <button onClick={() => setSubtasks([...subtasks, { id: crypto.randomUUID(), title: '', completed: false, items: [] }])} className="w-full py-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 font-bold text-xs">+ ADICIONAR GRUPO</button>
+                    <button onClick={() => setSubtasks([...subtasks, { id: crypto.randomUUID(), title: '', completed: false, items: [] }])} className="w-full py-4 bg-transparent border-2 border-dashed border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors rounded-2xl text-gray-400 hover:text-gray-600 font-bold text-xs">+ CRIAR NOVO GRUPO</button>
                   </div>
                 </div>
               </div>
@@ -347,17 +376,17 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
                   <div className="bg-gray-50 p-6 rounded-4xl text-center">
                     <label className="block text-[10px] font-bold text-gray-400 mb-4 uppercase">🍅 Pomodoros Feitos</label>
                     <div className="flex items-center justify-between">
-                      <button onClick={() => setPomodoros(Math.max(0, pomodoros - 1))} className="w-10 h-10 bg-white rounded-xl shadow-sm">-</button>
-                      <span className="text-4xl font-black">{pomodoros}</span>
-                      <button onClick={() => setPomodoros(pomodoros + 1)} className="w-10 h-10 bg-orange-500 text-white rounded-xl shadow-lg">+</button>
+                      <button onClick={() => setPomodoros(Math.max(0, pomodoros - 1))} className="w-10 h-10 bg-white rounded-xl shadow-sm text-gray-500 hover:text-gray-900 active:scale-95 transition-all">-</button>
+                      <span className="text-4xl font-black tabular-nums">{pomodoros}</span>
+                      <button onClick={() => setPomodoros(pomodoros + 1)} className="w-10 h-10 bg-orange-500 text-white rounded-xl shadow-lg hover:bg-orange-600 active:scale-95 transition-all font-bold">+</button>
                     </div>
                   </div>
                   <div className="bg-gray-50 p-6 rounded-4xl text-center">
                     <label className="block text-[10px] font-bold text-gray-400 mb-4 uppercase">📝 Questões</label>
                     <div className="flex items-center gap-2">
-                       <input type="number" value={questionsCorrect || ''} onChange={e => setQuestionsCorrect(Number(e.target.value))} className="w-full bg-emerald-50 text-emerald-600 font-bold text-2xl text-center rounded-xl py-2" />
-                       <span className="text-gray-300">/</span>
-                       <input type="number" value={questionsTotal || ''} onChange={e => setQuestionsTotal(Number(e.target.value))} className="w-full bg-white font-bold text-2xl text-center rounded-xl py-2 border border-gray-100" />
+                       <input type="number" value={questionsCorrect || ''} onChange={e => setQuestionsCorrect(Number(e.target.value))} placeholder="0" className="w-full bg-emerald-50 text-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-500/20 font-black text-2xl text-center rounded-xl py-3 border border-transparent focus:border-emerald-200 transition-all outline-none" />
+                       <span className="text-gray-300 font-bold text-xl">/</span>
+                       <input type="number" value={questionsTotal || ''} onChange={e => setQuestionsTotal(Number(e.target.value))} placeholder="0" className="w-full bg-white font-black text-2xl text-center rounded-xl py-3 border border-gray-100 focus:border-indigo-200 focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none" />
                     </div>
                   </div>
                 </div>
@@ -368,7 +397,7 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
                      <button onClick={() => setFlashcardsCompleted(!flashcardsCompleted)} className={cn("flex-1 py-4 rounded-2xl border font-bold text-xs uppercase transition-all", flashcardsCompleted ? "bg-purple-50 border-purple-200 text-purple-600" : "bg-gray-50 border-gray-100 text-gray-400")}>Flashcards</button>
                    </div>
                 </div>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anotações..." className="w-full bg-gray-50 rounded-2xl p-5 text-sm h-48 focus:outline-none focus:ring-2 focus:ring-indigo-500/10" />
+                <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Anotações e detalhes que não cabem no checklist..." className="w-full bg-gray-50/50 border border-transparent hover:border-gray-200 focus:bg-white focus:border-indigo-200 focus:ring-4 focus:ring-indigo-500/10 transition-all rounded-2xl p-5 text-sm h-48 focus:outline-none shadow-sm" />
               </div>
             )}
             {activeTab === 'importar' && (

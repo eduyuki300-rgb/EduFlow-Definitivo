@@ -16,6 +16,7 @@ import { TaskModal } from './components/layout/TaskModal';
 import { HojeTab } from './components/layout/HojeTab';
 import { InboxTab } from './components/layout/InboxTab';
 import { HistoricoTab } from './components/layout/HistoricoTab';
+import { AnalyticsTab } from './components/layout/AnalyticsTab';
 
 import { User } from 'firebase/auth';
 
@@ -52,6 +53,7 @@ const TABS = [
   { id: 'semana', label: 'Semana', icon: CalendarRange, color: 'text-pastel-blue' },
   { id: 'inbox', label: 'Inbox', icon: Inbox, color: 'text-pastel-lavender' },
   { id: 'concluida', label: 'Histórico', icon: History, color: 'text-pastel-cream' },
+  { id: 'analytics', label: 'Visão', icon: BarChart2, color: 'text-indigo-400' },
 ] as const;
 
 type Tab = typeof TABS[number]['id'];
@@ -227,10 +229,10 @@ function AppContent({
           </div>
           <div>
             <h1 className="text-xl font-black tracking-tighter text-gray-900 leading-none uppercase">
-              {activeTab === 'hoje' ? 'Missões' : activeTab === 'semana' ? 'Semana' : activeTab === 'inbox' ? 'Triagem' : 'Legado'}
+              {activeTab === 'hoje' ? 'Missões' : activeTab === 'semana' ? 'Semana' : activeTab === 'inbox' ? 'Triagem' : activeTab === 'analytics' ? 'Analytics' : 'Legado'}
             </h1>
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-[0.2em] mt-1">
-              EduFlow <span className="mx-1 text-gray-200">|</span> {activeTab === 'hoje' ? 'Foco Máximo' : activeTab === 'semana' ? 'Visão Geral' : activeTab === 'inbox' ? 'Processando' : 'Conquistas'}
+              EduFlow <span className="mx-1 text-gray-200">|</span> {activeTab === 'hoje' ? 'Foco Máximo' : activeTab === 'semana' ? 'Visão Geral' : activeTab === 'inbox' ? 'Processando' : activeTab === 'analytics' ? 'Desempenho' : 'Conquistas'}
             </p>
           </div>
         </div>
@@ -400,7 +402,7 @@ function AppContent({
         </div>
       </header>
         {/* Main Layout Area inside the Padding Wrapper */}
-        <main className="flex-1 min-w-0 overflow-y-auto p-6 pb-28 relative custom-scrollbar flex flex-col">
+        <main className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 pb-32 relative custom-scrollbar flex flex-col">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
               <X size={18} /> Erro ao carregar dados: {error}
@@ -426,6 +428,7 @@ function AppContent({
                 {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
                 {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} isEduStuffsOpen={isEduStuffsOpen} />}
                 {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} isEduStuffsOpen={isEduStuffsOpen} />}
+                {activeTab === 'analytics' && <AnalyticsTab tasks={tasks} userName={user.displayName ?? undefined} />}
               </motion.div>
             </AnimatePresence>
           )}
@@ -453,7 +456,10 @@ function AppContent({
         <Plus size={32} strokeWidth={2.5} className="group-hover:rotate-90 transition-transform duration-300" />
       </button>
 
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] sm:w-auto sm:min-w-[440px] bg-white/70 backdrop-blur-xl border border-gray-200/50 px-3 py-1.5 flex justify-between items-center z-70 rounded-4xl shadow-xl">
+      <nav 
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] sm:w-auto sm:min-w-[440px] bg-white/80 backdrop-blur-xl border border-gray-200/50 px-3 py-2 flex justify-between items-center z-70 rounded-4xl shadow-2xl"
+        style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

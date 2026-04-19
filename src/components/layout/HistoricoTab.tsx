@@ -169,33 +169,48 @@ export function HistoricoTab({ tasks, onEdit, userId, isEduStuffsOpen }: Histori
                 />
               </div>
               <div className="flex gap-2 shrink-0 overflow-x-auto pb-1 md:pb-0">
-                <select 
-                  value={subjectFilter}
-                  onChange={e => setSubjectFilter(e.target.value)}
-                  className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
-                >
-                  <option value="Todas">Toda as Matérias</option>
-                  {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <select 
-                  value={periodFilter}
-                  onChange={e => setPeriodFilter(e.target.value)}
-                  className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[100px]"
-                >
-                  <option value="all">Todo Período</option>
-                  <option value="today">Apenas Hoje</option>
-                  <option value="week">Últimos 7 dias</option>
-                  <option value="month">Últimos 30 dias</option>
-                </select>
-                <select 
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value as any)}
-                  className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px]"
-                >
-                  <option value="newest">Mais Recentes</option>
-                  <option value="oldest">Mais Antigas</option>
-                  <option value="effort">Maior Esforço</option>
-                </select>
+                <div className="relative flex items-center">
+                  <select 
+                    value={subjectFilter}
+                    onChange={e => setSubjectFilter(e.target.value)}
+                    className="px-4 py-3 pr-8 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors min-w-[120px]"
+                  >
+                    <option value="Todas">Toda as Matérias</option>
+                    {SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <div className="absolute right-3 pointer-events-none text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
+                </div>
+                <div className="relative flex items-center">
+                  <select 
+                    value={periodFilter}
+                    onChange={e => setPeriodFilter(e.target.value)}
+                    className="px-4 py-3 pr-8 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors min-w-[100px]"
+                  >
+                    <option value="all">Todo Período</option>
+                    <option value="today">Apenas Hoje</option>
+                    <option value="week">Últimos 7 dias</option>
+                    <option value="month">Últimos 30 dias</option>
+                  </select>
+                  <div className="absolute right-3 pointer-events-none text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
+                </div>
+                <div className="relative flex items-center">
+                  <select 
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as any)}
+                    className="px-4 py-3 pr-8 bg-white border border-gray-100 rounded-2xl text-xs font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors min-w-[120px]"
+                  >
+                    <option value="newest">Mais Recentes</option>
+                    <option value="oldest">Mais Antigas</option>
+                    <option value="effort">Maior Esforço</option>
+                  </select>
+                  <div className="absolute right-3 pointer-events-none text-gray-400">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </div>
+                </div>
               </div>
             </div>
 

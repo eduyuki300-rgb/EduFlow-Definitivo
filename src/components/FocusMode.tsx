@@ -112,7 +112,10 @@ export function FocusMode() {
       }}
       exit={{ opacity: 0 }}
       transition={{ duration: 1.5, ease: "easeInOut" }}
-      className="fixed inset-0 z-200 flex flex-col overflow-hidden"
+      className={cn(
+        "fixed inset-0 z-200 flex flex-col overflow-hidden transition-all",
+        isRunning && !isLightMode && "animate-pulse" // Adiciona respiração guiada apenas quando o timer estiver rodando escuro
+      )}
     >
       {/* 🌟 AUDIT FIX: FEEDBACK DE SYNC (Micro-spinner sutil) */}
       <AnimatePresence>
@@ -240,7 +243,7 @@ export function FocusMode() {
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               className={cn(
-                "text-8xl font-black tracking-tighter tabular-nums",
+                "text-[7rem] sm:text-[11rem] font-black tracking-tighter tabular-nums mx-4",
                 isLightMode ? "text-gray-900" : "text-white"
               )}
             >

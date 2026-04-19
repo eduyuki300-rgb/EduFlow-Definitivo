@@ -185,15 +185,18 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, onDelete, tag
                  <Activity size={14} />
                  <span className="text-[10px] font-black uppercase tracking-wider">Status</span>
                </div>
-               <select 
-                  value={localTask.status || 'todo'}
-                  onChange={(e) => handleUpdate({ status: e.target.value as any })}
-                  className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 focus:ring-0 cursor-pointer shadow-sm"
-               >
-                 <option value="todo">⬜ A fazer</option>
-                 <option value="doing">🔄 Fazendo</option>
-                 <option value="blocked">🚫 Bloqueado</option>
-               </select>
+               <div className="relative flex items-center">
+                 <select 
+                    value={localTask.status || 'todo'}
+                    onChange={(e) => handleUpdate({ status: e.target.value as any })}
+                    className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 pr-8 appearance-none focus:ring-0 cursor-pointer shadow-sm"
+                 >
+                   <option value="todo">⬜ A fazer</option>
+                   <option value="doing">🔄 Fazendo</option>
+                   <option value="blocked">🚫 Bloqueado</option>
+                 </select>
+                 <ChevronDown size={14} className="absolute right-3 pointer-events-none text-gray-400" />
+               </div>
             </div>
 
             {/* VENCIMENTO */}
@@ -220,20 +223,23 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, onDelete, tag
                  <Timer size={14} />
                  <span className="text-[10px] font-black uppercase tracking-wider">Estimativa</span>
                </div>
-               <select 
-                  value={localTask.estimatedTime || '30min'}
-                  onChange={(e) => handleUpdate({ estimatedTime: e.target.value })}
-                  className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 focus:ring-0 cursor-pointer shadow-sm"
-               >
-                 <option value="15min">15 min</option>
-                 <option value="30min">30 min</option>
-                 <option value="45min">45 min</option>
-                 <option value="1h">1 hora</option>
-                 <option value="1h30">1h 30m</option>
-                 <option value="2h">2 horas</option>
-                 <option value="3h+">3h ou mais</option>
-                 <option value="livre">Tempo livre</option>
-               </select>
+               <div className="relative flex items-center">
+                 <select 
+                    value={localTask.estimatedTime || '30min'}
+                    onChange={(e) => handleUpdate({ estimatedTime: e.target.value })}
+                    className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 pr-8 appearance-none focus:ring-0 cursor-pointer shadow-sm"
+                 >
+                   <option value="15min">15 min</option>
+                   <option value="30min">30 min</option>
+                   <option value="45min">45 min</option>
+                   <option value="1h">1 hora</option>
+                   <option value="1h30">1h 30m</option>
+                   <option value="2h">2 horas</option>
+                   <option value="3h+">3h ou mais</option>
+                   <option value="livre">Tempo livre</option>
+                 </select>
+                 <ChevronDown size={14} className="absolute right-3 pointer-events-none text-gray-400" />
+               </div>
             </div>
 
             {/* RECORRÊNCIA */}
@@ -242,16 +248,19 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, onDelete, tag
                  <RefreshCw size={14} />
                  <span className="text-[10px] font-black uppercase tracking-wider">Repetir</span>
                </div>
-               <select 
-                  value={localTask.recurrence || 'none'}
-                  onChange={(e) => handleUpdate({ recurrence: e.target.value as any })}
-                  className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 focus:ring-0 cursor-pointer shadow-sm"
-               >
-                 <option value="none">Não repete</option>
-                 <option value="daily">Todo dia</option>
-                 <option value="weekly">Toda semana</option>
-                 <option value="monthly">Todo mês</option>
-               </select>
+               <div className="relative flex items-center">
+                 <select 
+                    value={localTask.recurrence || 'none'}
+                    onChange={(e) => handleUpdate({ recurrence: e.target.value as any })}
+                    className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 pr-8 appearance-none focus:ring-0 cursor-pointer shadow-sm"
+                 >
+                   <option value="none">Não repete</option>
+                   <option value="daily">Todo dia</option>
+                   <option value="weekly">Toda semana</option>
+                   <option value="monthly">Todo mês</option>
+                 </select>
+                 <ChevronDown size={14} className="absolute right-3 pointer-events-none text-gray-400" />
+               </div>
             </div>
 
             {/* TAG SELECTOR */}
@@ -260,16 +269,19 @@ export function TaskDetailModal({ task, isOpen, onClose, onUpdate, onDelete, tag
                  <TagIcon size={14} />
                  <span className="text-[10px] font-black uppercase tracking-wider">Tag</span>
                </div>
-               <select 
-                  value={localTask.category}
-                  onChange={(e) => handleUpdate({ category: e.target.value })}
-                  className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 focus:ring-0 cursor-pointer shadow-sm"
-               >
-                 {tags.map(tag => (
-                   <option key={tag.id} value={tag.id}>{tag.emoji} {tag.label}</option>
-                 ))}
-                 {!tags.find(t => t.id === localTask.category) && <option value="pessoal">✨ Pessoal</option>}
-               </select>
+               <div className="relative flex items-center">
+                 <select 
+                    value={localTask.category}
+                    onChange={(e) => handleUpdate({ category: e.target.value })}
+                    className="w-full bg-white border-none rounded-lg text-xs font-bold py-2 pr-8 appearance-none focus:ring-0 cursor-pointer shadow-sm"
+                 >
+                   {tags.map(tag => (
+                     <option key={tag.id} value={tag.id}>{tag.emoji} {tag.label}</option>
+                   ))}
+                   {!tags.find(t => t.id === localTask.category) && <option value="pessoal">✨ Pessoal</option>}
+                 </select>
+                 <ChevronDown size={14} className="absolute right-3 pointer-events-none text-gray-400" />
+               </div>
             </div>
           </section>
 

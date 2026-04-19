@@ -62,12 +62,18 @@ export function HojeTab({ tasks, onEdit, userName, isEduStuffsOpen }: HojeTabPro
 
   if (tasks.filter(t => t.status === 'hoje').length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center py-24">
-        <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-gray-100">
-          <CalendarDays size={40} className="text-orange-500/20" />
+      <div className="flex flex-col items-center justify-center flex-1 text-center py-20 px-6 animate-in fade-in zoom-in duration-500">
+        <div className="relative mb-8">
+          <div className="absolute -inset-4 bg-orange-100 rounded-full blur-2xl opacity-50 animate-pulse" />
+          <div className="relative w-32 h-32 bg-white rounded-3xl flex items-center justify-center shadow-xl border border-gray-50 group">
+            <CalendarDays size={56} className="text-orange-500 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6" />
+            <Sparkles size={24} className="absolute -top-2 -right-2 text-yellow-400 animate-bounce" />
+          </div>
         </div>
-        <h3 className="text-xl font-bold text-gray-900 mb-2">Dia Livre!</h3>
-        <p className="text-gray-500 text-sm max-w-xs">Você não tem missões planejadas para hoje. Aproveite para descansar ou puxe tarefas do Inbox.</p>
+        <h3 className="text-2xl font-black text-gray-900 mb-3 tracking-tight">Horizonte Limpo!</h3>
+        <p className="text-gray-500 text-sm max-w-[280px] font-medium leading-relaxed mb-10">
+          Você completou tudo ou ainda não planejou seu dia. Que tal transformar o <span className="text-orange-500 font-bold">hoje</span> em um dia épico?
+        </p>
       </div>
     );
   }
@@ -152,15 +158,20 @@ export function HojeTab({ tasks, onEdit, userName, isEduStuffsOpen }: HojeTabPro
         </div>
         
         <div className="flex items-center gap-2">
-          <select 
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-4 py-3 bg-white border border-gray-100 rounded-2xl text-[10px] font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px] uppercase tracking-widest"
-          >
-            <option value="none">Ordenar</option>
-            <option value="priority">Prioridade</option>
-            <option value="effort">Esforço</option>
-          </select>
+          <div className="relative flex items-center">
+            <select 
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="px-4 py-3 pr-8 bg-white border border-gray-100 rounded-2xl text-[10px] font-bold text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/10 shadow-sm appearance-none min-w-[120px] uppercase tracking-widest cursor-pointer hover:bg-gray-50 transition-colors"
+            >
+              <option value="none">Ordenar</option>
+              <option value="priority">Prioridade</option>
+              <option value="effort">Esforço</option>
+            </select>
+            <div className="absolute right-3 pointer-events-none text-gray-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
 
           <button 
             onClick={() => setIsGrouped(!isGrouped)}

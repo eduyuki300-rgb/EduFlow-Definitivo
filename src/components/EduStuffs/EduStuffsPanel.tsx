@@ -164,7 +164,11 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="flex-1 flex flex-col p-6 pt-14 overflow-y-auto custom-scrollbar relative"
+            className="flex-1 flex flex-col p-6 overflow-y-auto custom-scrollbar relative"
+            style={{ 
+              paddingTop: 'calc(4rem + env(safe-area-inset-top, 0px))',
+              paddingBottom: 'calc(2rem + env(safe-area-inset-bottom, 0px))'
+            }}
           >
             {/* 1. HEADER */}
             <div className="flex items-start justify-between mb-8">
@@ -424,7 +428,7 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
                
                {totalSub > 0 && (
                  <p className="text-[9px] font-bold text-gray-400 mt-1.5 flex items-center gap-1">
-                   <div className={cn("w-1 h-1 rounded-full", completedSub === totalSub ? "bg-emerald-500" : "bg-gray-300")} />
+                   <span className={cn("inline-block w-1 h-1 rounded-full", completedSub === totalSub ? "bg-emerald-500" : "bg-gray-300")} />
                    ✓ {completedSub}/{totalSub} subtarefas
                  </p>
                )}
