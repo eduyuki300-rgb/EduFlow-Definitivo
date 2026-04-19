@@ -10,8 +10,10 @@ interface FocusContextType {
   activeTask: Task | null;
   session: FocusSessionApi | null;
   view: 'widget' | 'mini' | 'full';
+  theme: 'classic' | 'emerald' | 'midnight' | 'rose';
   setActiveTask: (task: Task | null) => void;
   setView: (view: 'widget' | 'mini' | 'full') => void;
+  setTheme: (theme: 'classic' | 'emerald' | 'midnight' | 'rose') => void;
 }
 
 const FocusContext = createContext<FocusContextType | undefined>(undefined);
@@ -21,7 +23,14 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   const { tasks } = useTasksContext();
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => localStorage.getItem('eduflow_active_focus_id'));
   const [view, setView] = useState<'widget' | 'mini' | 'full'>('widget');
+  const [theme, setTheme] = useState<'classic' | 'emerald' | 'midnight' | 'rose'>(() => {
+    return (localStorage.getItem('eduflow_pomodoro_theme') as any) || 'classic';
+  });
   const [cloudSessionData, setCloudSessionData] = useState<ActiveSession | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('eduflow_pomodoro_theme', theme);
+  }, [theme]);
 
   // Sync session from Cloud (Firestore)
   useEffect(() => {
@@ -85,7 +94,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   }), [session]);
 
   return (
-    <FocusContext.Provider value={{ activeTask, session: wrappedSession, view, setActiveTask, setView }}>
+    <FocusContext.Provider value={{ activeTask, session: wrappedSession, view, theme, setActiveTask, setView, setTheme }}>
       {children}
     </FocusContext.Provider>
   );

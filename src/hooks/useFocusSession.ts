@@ -98,6 +98,10 @@ export function useFocusSession(
   const [isLocalUpdating, setIsLocalUpdating] = useState(false);
   const pendingCloudUpdate = useRef<ActiveSession | null>(null);
 
+  // REFS PARA RECONCILIAÇÃO ABSOLUTA (PREVENÇÃO DE DRIFT)
+  const targetEndTimeRef = useRef<number | null>(null);
+  const sessionStartTimestampRef = useRef<number | null>(null);
+
   // Sync refs with state
   useEffect(() => { 
     statusRef.current = status; 
@@ -114,11 +118,18 @@ export function useFocusSession(
     if (data.status === 'running' || data.status === 'break') {
       const endAt = data.endAt?.toDate ? data.endAt.toDate() : new Date(data.endAt);
       const now = new Date();
-      // +2s Latency Buffer (AUDIT FIX)
-      calcTimeLeft = Math.max(0, Math.floor((endAt.getTime() - now.getTime()) / 1000) + 2);
+      // +1s Latency Buffer
+      calcTimeLeft = Math.max(0, Math.floor((endAt.getTime() - now.getTime()) / 1000) + 1);
       
       const startAt = data.startTime?.toDate ? data.startTime.toDate() : new Date(data.startTime);
       calcElapsed = Math.floor((now.getTime() - startAt.getTime()) / 1000);
+
+      // Re-estabelece o target de fim local baseado na nuvem
+      targetEndTimeRef.current = endAt.getTime();
+      sessionStartTimestampRef.current = startAt.getTime();
+    } else {
+      targetEndTimeRef.current = null;
+      sessionStartTimestampRef.current = null;
     }
 
     setStatus(data.status);
@@ -139,7 +150,7 @@ export function useFocusSession(
   }, [cloudData, taskId, isLocalUpdating, applyCloudUpdate]);
 
   const syncToCloud = useCallback(async (updates: Partial<ActiveSession>) => {
-    if (!userId) return;
+    if (!userId || taskId === 'general') return; // Segurança contra IDs genéricos
     setIsLocalUpdating(true); // LOCK
     try {
       const sessionRef = doc(db, `users/${userId}/config/activeSession`);
@@ -200,21 +211,29 @@ export function useFocusSession(
   }, [clearTimer, focusDuration, userId]);
 
   const toggleTimer = useCallback(async () => {
-    const now = new Date();
+    const now = Date.now();
     const currentStatus = statusRef.current;
 
     if (currentStatus === 'idle' || currentStatus === 'paused' || currentStatus === 'completed') {
       const duration = currentStatus === 'completed' ? focusDuration : timeLeftRef.current;
-      const endAt = new Date(now.getTime() + duration * 1000);
+      const endAt = new Date(now + duration * 1000);
+      
+      targetEndTimeRef.current = endAt.getTime();
+      // Se estamos começando do zero, definimos o start absoluto
+      if (currentStatus === 'idle' || currentStatus === 'completed') {
+        sessionStartTimestampRef.current = now;
+      }
+
       setStatus('running');
       await syncToCloud({
         status: 'running',
-        startTime: serverTimestamp(),
+        startTime: sessionStartTimestampRef.current ? Timestamp.fromMillis(sessionStartTimestampRef.current) : serverTimestamp(),
         endAt: Timestamp.fromDate(endAt),
         timeLeftAtPause: null
       });
     } else if (currentStatus === 'running') {
       clearTimer();
+      targetEndTimeRef.current = null;
       setStatus('paused');
       await syncToCloud({
         status: 'paused',
@@ -224,26 +243,49 @@ export function useFocusSession(
     }
   }, [focusDuration, syncToCloud, clearTimer]);
 
-  // FIX 3: Stale-closure-free Tick with Cleanup Rigorous
+  // TICKER ABSOLUTO: Previne drift de intervalos e re-renders
   useEffect(() => {
     if (status !== 'running' && status !== 'break') {
       clearTimer();
       return;
     }
 
+    // Garante que temos um target se viemos de um re-render/reconexão
+    if (!targetEndTimeRef.current) {
+       targetEndTimeRef.current = Date.now() + timeLeftRef.current * 1000;
+       // Se o status é running mas não temos start absolute, recuperamos do timeElapsed
+       if (status === 'running' && !sessionStartTimestampRef.current) {
+          sessionStartTimestampRef.current = Date.now() - (timeElapsedRef.current * 1000);
+       }
+    }
+
     if (intervalRef.current) clearInterval(intervalRef.current);
 
+    // Usa um intervalo menor (200ms) para alta precisão, mas atualiza o estado apenas no segundo
     intervalRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        const next = Math.max(0, prev - 1);
-        if (next <= 0) {
-          if (statusRef.current === 'running') completeFocusCycle();
-          else resetTimer();
+      const now = Date.now();
+      const target = targetEndTimeRef.current || now;
+      const remaining = Math.max(0, Math.ceil((target - now) / 1000));
+      
+      // Só atualiza o estado se o valor mudar (Audit Fix: Prevenção de Rerender Loop)
+      if (remaining !== timeLeftRef.current) {
+        setTimeLeft(remaining);
+      }
+
+      // Calcula tempo decorrido absoluto
+      if (sessionStartTimestampRef.current) {
+        const elapsed = Math.floor((now - sessionStartTimestampRef.current) / 1000);
+        if (elapsed !== timeElapsedRef.current) {
+          setTimeElapsed(elapsed);
         }
-        return next;
-      });
-      setTimeElapsed(prev => prev + 1);
-    }, 1000);
+      }
+
+      if (remaining <= 0) {
+        clearTimer();
+        if (statusRef.current === 'running') completeFocusCycle();
+        else resetTimer();
+      }
+    }, 200);
 
     return () => {
       if (intervalRef.current) {

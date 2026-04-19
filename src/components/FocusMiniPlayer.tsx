@@ -4,6 +4,7 @@ import { Maximize2, Pause, Play, Square, X, PictureInPicture2 } from 'lucide-rea
 import { useFocus } from '../context/FocusContext';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { POMODORO_THEMES, PomodoroTheme } from '../utils/theme';
 
 function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)); }
 
@@ -16,17 +17,19 @@ function formatTime(seconds: number) {
 }
 
 export function FocusMiniPlayer() {
-  const { activeTask, session, setView, setActiveTask } = useFocus();
+  const { activeTask, session, setView, setActiveTask, theme } = useFocus();
   
-  const [pos, setPos] = useState(() => {
-    try { 
-      const raw = localStorage.getItem(STORAGE_KEY); 
-      if (!raw) return { x: 0, y: 0 }; // Using offsets from default bottom-left
-      return JSON.parse(raw); 
-    } catch { 
-      return { x: 24, y: window.innerHeight - 150 }; 
+  const [pos, setPos] = useState({ x: 24, y: 500 });
+  
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) setPos(JSON.parse(raw));
+      else setPos({ x: 24, y: window.innerHeight - 150 });
+    } catch {
+      setPos({ x: 24, y: window.innerHeight - 150 });
     }
-  });
+  }, []);
 
   useEffect(() => { 
     try { 
@@ -72,7 +75,8 @@ export function FocusMiniPlayer() {
   const circumference = 2 * Math.PI * radius;
   const total = mode === 'pomodoro' ? (isBreakMode ? breakDuration : focusDuration) : 1;
   const progress = mode === 'pomodoro' ? (1 - (displaySeconds / total)) : 0;
-  const offset = circumference * (1 - progress);
+  const currentTheme = POMODORO_THEMES[theme as PomodoroTheme] || POMODORO_THEMES.classic;
+  const themeConfig = isBreakMode ? currentTheme.break : currentTheme.focus;
 
   return (
     <motion.div
@@ -83,12 +87,18 @@ export function FocusMiniPlayer() {
       dragMomentum={false}
       dragElastic={0.05}
       onDragEnd={(_, info) => {
-        setPos(prev => ({ 
-          x: prev.x + info.offset.x, 
-          y: prev.y + info.offset.y 
-        }));
+        setPos(prev => {
+          let newX = prev.x + info.offset.x;
+          let newY = prev.y + info.offset.y;
+          // Soft boundaries mapping
+          if (typeof window !== 'undefined') {
+            newX = Math.max(16, Math.min(newX, window.innerWidth - 320));
+            newY = Math.max(16, Math.min(newY, window.innerHeight - 120));
+          }
+          return { x: newX, y: newY };
+        });
       }}
-      className="fixed bottom-32 left-8 z-100 w-72 cursor-grab active:cursor-grabbing"
+      className="fixed top-0 left-0 z-100 w-72 cursor-grab active:cursor-grabbing"
       style={{ x: pos.x, y: pos.y }}
     >
       <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_20px_40px_rgba(0,0,0,0.12)] border border-gray-100 p-4 flex items-center gap-4">
@@ -98,7 +108,7 @@ export function FocusMiniPlayer() {
             <circle cx="28" cy="28" r="24" stroke="#f1f5f9" strokeWidth="4" fill="transparent" />
             <motion.circle
               cx="28" cy="28" r="24"
-              stroke={isBreakMode ? '#3b82f6' : '#f97316'}
+              stroke={themeConfig.color}
               strokeWidth="4" fill="transparent"
               strokeDasharray={2 * Math.PI * 24}
               initial={{ strokeDashoffset: 2 * Math.PI * 24 }}
@@ -111,7 +121,7 @@ export function FocusMiniPlayer() {
             onClick={(e) => { e.stopPropagation(); toggleTimer(); }}
             className={cn(
               "absolute inset-0 flex items-center justify-center transition-all hover:scale-110 active:scale-90",
-              isBreakMode ? "text-blue-500" : "text-orange-500"
+              themeConfig.textClass
             )}
           >
             {status === 'running' || status === 'break' 

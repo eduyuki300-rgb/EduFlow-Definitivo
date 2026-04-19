@@ -192,7 +192,7 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
   }, [playSuccessSound]);
 
   return (
-    <div className="flex flex-col h-full bg-white/40 backdrop-blur-sm rounded-3xl border border-gray-100/50 shadow-xl overflow-hidden">
+    <div className="flex flex-col flex-1 min-h-0 bg-white/40 backdrop-blur-sm rounded-3xl border border-gray-100/50 shadow-xl overflow-hidden">
       <div className="p-4 border-b border-gray-50 flex flex-col sm:flex-row gap-3 items-center justify-between bg-gray-50/50">
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -214,15 +214,15 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
         </select>
       </div>
 
-      <div className="flex-1 overflow-x-auto p-4 custom-scrollbar bg-transparent snap-x">
+      <div className="flex-1 overflow-hidden flex flex-col p-4 bg-transparent">
         <DragDropContext onDragEnd={onDragEnd}>
-          <div className="flex gap-3 overflow-x-auto pb-4 min-h-0 flex-1 custom-scrollbar snap-x">
+          <div className="flex gap-4 overflow-x-auto overflow-y-hidden pb-4 flex-1 custom-scrollbar snap-x">
             {COLUMNS.map(column => {
               const columnTasks = tasksByColumn[column.id] || [];
               
               return (
-                <div key={column.id} className="flex flex-col shrink-0 w-72 snap-start">
-                  <div className="flex items-center justify-between mb-5 px-3">
+                <div key={column.id} className="flex flex-col shrink-0 w-80 snap-start h-full">
+                  <div className="flex items-center justify-between mb-4 px-3">
                     <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-[0.2em]">{column.title}</h3>
                     <span className="bg-white/60 text-gray-500 text-[10px] font-black px-2.5 py-1 rounded-xl border border-gray-100 shadow-xs tabular-nums">
                       {columnTasks.length}
@@ -235,13 +235,13 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                         ref={provided.innerRef}
                         {...provided.droppableProps}
                         className={cn(
-                          "flex-1 min-h-[200px] space-y-3 p-2 rounded-4xl transition-all overflow-y-auto custom-scrollbar border border-transparent",
+                          "flex-1 min-h-0 space-y-3 p-3 rounded-4xl transition-all overflow-y-auto custom-scrollbar border border-transparent",
                           column.color,
                           snapshot.isDraggingOver && "bg-orange-50/20 border-orange-500/10"
                         )}
                       >
                         {columnTasks.length === 0 && (
-                          <div className="flex flex-col items-center justify-center py-10 opacity-20 gap-2">
+                          <div className="flex flex-col items-center justify-center h-full opacity-30 gap-3 py-10">
                             <CircleOff size={24} />
                             <span className="text-[10px] font-bold uppercase tracking-widest">Vazio</span>
                           </div>

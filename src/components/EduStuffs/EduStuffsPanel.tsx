@@ -142,7 +142,7 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
     return { todayTasks, upcomingTasks };
   }, [filteredTodos]);
 
-  if (isRecovering) return null; // Seguro para retornar aqui (após todos os hooks)
+  // if (isRecovering) return null; // TRUQUE REMOVIDO: A troca da key no motion.aside abaixo já força o remount limpo no React!
 
   return (
     <motion.aside

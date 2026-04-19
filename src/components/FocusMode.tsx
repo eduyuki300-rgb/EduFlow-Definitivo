@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { useFocus } from '../context/FocusContext';
 import { cn } from '../lib/cn';
+import { POMODORO_THEMES, PomodoroTheme } from '../utils/theme';
+import confetti from 'canvas-confetti';
 
 function formatTime(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -13,7 +15,7 @@ function formatTime(seconds: number) {
 }
 
 export function FocusMode() {
-  const { activeTask, session, setView } = useFocus();
+  const { activeTask, session, setView, theme } = useFocus();
   
   if (!session) return null;
   
@@ -39,6 +41,7 @@ export function FocusMode() {
   const isRunning = status === 'running' || status === 'break';
   const isFocusMode = mode === 'pomodoro' && ['running', 'paused', 'idle', 'completed'].includes(status);
   const isBreakMode = mode === 'pomodoro' && ['break', 'break-paused'].includes(status);
+  const currentTheme = POMODORO_THEMES[theme as PomodoroTheme] || POMODORO_THEMES.classic;
   
   const displaySeconds = mode === 'pomodoro' ? timeLeft : timeElapsed;
   const currentDuration = isBreakMode ? breakDuration : focusDuration;
@@ -63,6 +66,17 @@ export function FocusMode() {
     }
   };
 
+  React.useEffect(() => {
+    if (notification && notification.type === 'focus') {
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        origin: { y: 0.4 },
+        colors: [currentTheme.focus.color, '#ffffff', '#fcd34d']
+      });
+    }
+  }, [notification, currentTheme]);
+
   // ⌨️ AUDIT FIX: ACESSIBILIDADE - Suporte a tecla ESC
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -77,11 +91,11 @@ export function FocusMode() {
   const getBackgroundGradient = () => {
     if (status === 'running' || status === 'completed') {
       return isFocusMode
-        ? 'linear-gradient(135deg, #FF6B6B 0%, #EE5D5D 100%)' // Foco Quente
-        : 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)'; // Pausa Azul
+        ? currentTheme.focus.gradient 
+        : currentTheme.break.gradient; 
     }
     if (isBreakMode) {
-      return 'linear-gradient(135deg, #10b981 0%, #059669 100%)'; // Pausa Verde Relaxante
+      return currentTheme.break.gradient; // Pausa Relaxante
     }
     // Idle / Paused (Sóbrio)
     return 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'; 
@@ -126,7 +140,7 @@ export function FocusMode() {
             <div className="bg-white text-gray-900 p-6 rounded-5xl shadow-2xl flex flex-col items-center gap-4 text-center border border-gray-100">
               <div className={cn(
                 "w-12 h-12 rounded-2xl flex items-center justify-center",
-                notification.type === 'focus' ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600"
+                notification.type === 'focus' ? POMODORO_THEMES[theme as PomodoroTheme]?.focus.lightBgClass + " " + POMODORO_THEMES[theme as PomodoroTheme]?.focus.lightTextClass : POMODORO_THEMES[theme as PomodoroTheme]?.break.lightBgClass + " " + POMODORO_THEMES[theme as PomodoroTheme]?.break.lightTextClass
               )}>
                 <BookOpen size={24} />
               </div>
@@ -138,7 +152,7 @@ export function FocusMode() {
                 onClick={advanceNotification}
                 className={cn(
                   "w-full py-4 rounded-3xl font-black text-white transition-all active:scale-95 shadow-lg",
-                  notification.type === 'focus' ? "bg-orange-500 shadow-orange-500/30" : "bg-blue-500 shadow-blue-500/30"
+                  notification.type === 'focus' ? POMODORO_THEMES[theme as PomodoroTheme]?.focus.bgClass + " " + POMODORO_THEMES[theme as PomodoroTheme]?.focus.shadowClass : POMODORO_THEMES[theme as PomodoroTheme]?.break.bgClass + " " + POMODORO_THEMES[theme as PomodoroTheme]?.break.shadowClass
                 )}
               >
                 {notification.actionLabel}
@@ -285,9 +299,9 @@ export function FocusMode() {
 
           <button
             onClick={skipToComplete}
-            disabled={mode !== 'pomodoro' || status !== 'running'}
+            disabled={mode !== 'pomodoro' || status === 'idle' || status === 'completed'}
             className={cn(
-              "rounded-3xl p-6 transition-all active:scale-90 disabled:opacity-10",
+              "rounded-3xl p-6 transition-all active:scale-90 disabled:opacity-10 cursor-pointer pointer-events-auto",
               isLightMode ? "bg-gray-50 text-gray-400 hover:text-gray-900" : "bg-white/10 text-white/40 hover:text-white"
             )}
             title="Pular"

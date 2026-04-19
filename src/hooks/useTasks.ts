@@ -32,6 +32,14 @@ const getInitialPendingUpdates = () => {
 
 const pendingUpdates = getInitialPendingUpdates();
 
+// PROACTIVE CLEANUP: Remove any legacy 'general' entries that might crash sync
+if (pendingUpdates.has('general')) {
+  pendingUpdates.delete('general');
+  try {
+    localStorage.setItem(BUFFER_KEY, JSON.stringify(Array.from(pendingUpdates.entries())));
+  } catch {}
+}
+
 const saveBuffer = () => {
   try {
     localStorage.setItem(BUFFER_KEY, JSON.stringify(Array.from(pendingUpdates.entries())));
@@ -208,6 +216,8 @@ export function useTasks(userId: string | undefined) {
     
     try {
       entries.forEach(([taskId, data]) => {
+        if (taskId === 'general' || !taskId) return; // Defense in depth
+
         const docRef = doc(db, 'tasks', taskId);
         const docUpdates: any = { updatedAt: serverTimestamp() };
         if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);

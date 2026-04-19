@@ -175,15 +175,16 @@ function AppContent({
   
   // Watchdog de Integridade de UI (Monitoramento de Elementos Globais)
   useUIWatcher(['nav-bar'], 5000);
-  const [isEduStuffsOpen, setIsEduStuffsOpen] = useState(false);
+  const [isEduStuffsOpen, setIsEduStuffsOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('eduflow_edustuffs_open') !== 'false';
+    }
+    return false; // Default para SSR se houver
+  });
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
-    const saved = localStorage.getItem('eduflow_edustuffs_open');
-    if (saved !== 'false') {
-      setIsEduStuffsOpen(true);
-    }
   }, []);
 
   // Celebração de Level Up
@@ -399,7 +400,7 @@ function AppContent({
         </div>
       </header>
         {/* Main Layout Area inside the Padding Wrapper */}
-        <main className="flex-1 min-w-0 overflow-y-auto p-6 pb-44 relative custom-scrollbar">
+        <main className="flex-1 min-w-0 overflow-y-auto p-6 pb-28 relative custom-scrollbar flex flex-col">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-100 text-red-600 rounded-2xl flex items-center gap-2 text-sm font-bold animate-in fade-in duration-300">
               <X size={18} /> Erro ao carregar dados: {error}
@@ -407,7 +408,7 @@ function AppContent({
           )}
           
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center h-64 gap-3 text-text-muted animate-in fade-in duration-500">
+            <div className="flex flex-col items-center justify-center flex-1 gap-3 text-text-muted animate-in fade-in duration-500">
               <Loader2 size={40} className="animate-spin text-pastel-blue" />
               <p className="font-bold text-sm tracking-wide">Sincronizando com a nuvem...</p>
             </div>
@@ -419,7 +420,7 @@ function AppContent({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className="h-full"
+                className="flex-1 flex flex-col min-h-0"
               >
                 {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} isEduStuffsOpen={isEduStuffsOpen} />}
                 {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}

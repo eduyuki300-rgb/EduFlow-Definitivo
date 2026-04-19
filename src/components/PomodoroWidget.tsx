@@ -17,6 +17,8 @@ import { useFocus } from '../context/FocusContext';
 import { cn } from '../lib/cn';
 import { SessionNotificationCard } from './focus/SessionNotificationCard';
 import { playSuccessSound } from '../utils/audio';
+import { POMODORO_THEMES, PomodoroTheme } from '../utils/theme';
+import confetti from 'canvas-confetti';
 
 interface PomodoroWidgetProps {
   tasks: Task[];
@@ -27,7 +29,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
-  const { activeTask, session, setActiveTask, setView, view } = useFocus();
+  const { activeTask, session, setActiveTask, setView, view, theme, setTheme } = useFocus();
 
   if (!session) return null;
 
@@ -56,13 +58,23 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   const isFocusMode = mode === 'pomodoro' && ['running', 'paused', 'idle', 'completed'].includes(status);
   const isBreakMode = mode === 'pomodoro' && ['break', 'break-paused'].includes(status);
 
+  const currentTheme = POMODORO_THEMES[theme as PomodoroTheme] || POMODORO_THEMES.classic;
+  const themeConfig = isBreakMode ? currentTheme.break : currentTheme.focus;
+
   useEffect(() => {
     if (notification && view === 'widget') {
-      // Usa o gerador de áudio interno para evitar problemas de cache com arquivos externos
+      if (notification.type === 'focus') {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.8 },
+          colors: [currentTheme.focus.color, '#fbbf24', '#f8fafc']
+        });
+      }
       playSuccessSound(false); // Som triunfal para fim de ciclo
       setIsExpanded(true);
     }
-  }, [notification, view]);
+  }, [notification, view, currentTheme]);
 
   const activeTasks = tasks.filter((task) => task.status !== 'concluida');
 
@@ -97,7 +109,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                 <div
                   className={cn(
                     'flex h-8 w-8 items-center justify-center rounded-xl shadow-sm',
-                    isFocusMode ? 'bg-orange-50 text-orange-500' : 'bg-blue-50 text-blue-500'
+                    themeConfig.lightBgClass, themeConfig.lightTextClass
                   )}
                 >
                   <Timer size={16} />
@@ -142,7 +154,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                 <select
                   value={activeTask?.id || ''}
                   onChange={(event) => handleTaskChange(event.target.value)}
-                  className="w-full appearance-none rounded-2xl border border-gray-100 bg-gray-50/60 p-3 pr-10 text-xs font-bold text-gray-900 outline-none transition-all focus:ring-4 focus:ring-orange-500/5"
+                  className={cn("w-full appearance-none rounded-2xl border border-gray-100 bg-gray-50/60 p-3 pr-10 text-xs font-bold text-gray-900 outline-none transition-all focus:ring-4", isFocusMode ? "focus:ring-black/5" : "focus:ring-black/5")}
                 >
                   <option value="">🎯 Foco livre ou selecione tarefa...</option>
                   {activeTasks.map((task) => (
@@ -161,9 +173,8 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
               <div className="relative">
                 <div
                   className={cn(
-                    'absolute -inset-8 rounded-full blur-2xl transition-all duration-1000',
-                    isRunning && isFocusMode && 'scale-110 bg-orange-500/10',
-                    isRunning && isBreakMode && 'scale-110 bg-blue-500/10',
+                    'absolute -inset-8 rounded-full blur-2xl transition-all duration-1000 opacity-20',
+                    isRunning && 'scale-110', themeConfig.bgClass,
                     !isRunning && 'opacity-0'
                   )}
                 />
@@ -173,7 +184,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                     cx="88"
                     cy="88"
                     r="80"
-                    stroke={isFocusMode ? '#f97316' : '#3b82f6'}
+                    stroke={themeConfig.color}
                     strokeWidth="10"
                     fill="transparent"
                     strokeDasharray={2 * Math.PI * 80}
@@ -196,7 +207,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                   <div
                     className={cn(
                       'mt-2 rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-widest',
-                      isFocusMode ? 'border-orange-100 bg-orange-50 text-orange-600' : 'border-blue-100 bg-blue-50 text-blue-600'
+                      themeConfig.borderClass, themeConfig.lightBgClass, themeConfig.lightTextClass
                     )}
                   >
                     {status === 'running'
@@ -247,7 +258,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                 onClick={toggleTimer}
                 className={cn(
                   'rounded-4xl p-6 text-white shadow-xl transition-all hover:scale-105 active:scale-95',
-                  isFocusMode ? 'bg-orange-500 shadow-orange-500/20' : 'bg-blue-500 shadow-blue-500/20'
+                  themeConfig.bgClass, themeConfig.shadowClass
                 )}
               >
                 {isRunning ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
@@ -255,8 +266,8 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
 
               <button
                 onClick={skipToComplete}
-                disabled={mode !== 'pomodoro' || status !== 'running'}
-                className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-gray-300 transition-all hover:text-gray-900 active:scale-95 disabled:opacity-30"
+                disabled={mode !== 'pomodoro' || status === 'idle' || status === 'completed'}
+                className="rounded-2xl border border-gray-100 bg-gray-50 p-4 text-gray-300 transition-all hover:text-gray-900 active:scale-95 disabled:opacity-30 cursor-pointer pointer-events-auto"
                 title="Pular"
               >
                 <SkipForward size={18} />
@@ -297,6 +308,23 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="mb-2 block text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        Tema do Pomodoro
+                      </label>
+                      <div className="flex gap-2">
+                        {Object.entries(POMODORO_THEMES).map(([key, config]) => (
+                          <button
+                            key={key}
+                            onClick={() => setTheme(key as PomodoroTheme)}
+                            className={cn("w-8 h-8 rounded-full transition-all", theme === key ? "ring-2 ring-offset-2 scale-110" : "hover:scale-105")}
+                            style={{ backgroundColor: config.focus.color, ringColor: config.focus.color }}
+                            title={key}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="flex items-center justify-between rounded-2xl bg-gray-50 p-3">
                       <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
                         Início automático
@@ -326,7 +354,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
                   exit={{ opacity: 0, scale: 0.94 }}
                   className="absolute inset-0 z-60 flex flex-col items-center justify-center bg-white/95 p-6 text-center backdrop-blur-md"
                 >
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-500">
+                  <div className={cn("mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border", themeConfig.borderClass, themeConfig.lightBgClass, themeConfig.lightTextClass)}>
                     <Square size={20} />
                   </div>
                   <h3 className="mb-1 text-sm font-black text-gray-900">Encerrar sessão?</h3>
@@ -373,7 +401,7 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
         className={cn(
           'relative flex h-16 w-16 items-center justify-center rounded-3xl shadow-2xl transition-all hover:scale-110 active:scale-90',
           isRunning
-            ? 'bg-orange-500 text-white shadow-orange-500/20'
+            ? cn("text-white", themeConfig.bgClass, themeConfig.shadowClass)
             : 'border border-gray-100 bg-white text-gray-400 shadow-[0_10px_30px_rgba(0,0,0,0.08)] hover:bg-gray-50'
         )}
       >
