@@ -3,7 +3,8 @@ import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Task, ActiveSession } from '../types';
 import { useFocusSession, FocusSessionApi } from '../hooks/useFocusSession';
-import { useAuth } from '../hooks/useAuth';
+import { useAuthContext } from './AuthContext';
+import { useTasksContext } from './TasksContext';
 
 interface FocusContextType {
   activeTask: Task | null;
@@ -15,8 +16,9 @@ interface FocusContextType {
 
 const FocusContext = createContext<FocusContextType | undefined>(undefined);
 
-export function FocusProvider({ children, tasks }: { children: React.ReactNode, tasks: Task[] }) {
-  const { user } = useAuth();
+export function FocusProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuthContext();
+  const { tasks } = useTasksContext();
   const [activeTaskId, setActiveTaskId] = useState<string | null>(() => localStorage.getItem('eduflow_active_focus_id'));
   const [view, setView] = useState<'widget' | 'mini' | 'full'>('widget');
   const [cloudSessionData, setCloudSessionData] = useState<ActiveSession | null>(null);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc, increment } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, deleteDoc, increment, writeBatch } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Task, Status } from '../types';
 
@@ -18,8 +18,15 @@ const BUFFER_KEY = 'eduflow_pending_sync';
 const getInitialPendingUpdates = () => {
   try {
     const saved = localStorage.getItem(BUFFER_KEY);
-    if (saved) return new Map<string, { liquidTime: number, pomodoros: number }>(JSON.parse(saved));
-  } catch {}
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        return new Map<string, { liquidTime: number, pomodoros: number }>(parsed);
+      }
+    }
+  } catch (err) {
+    console.warn('[useTasks] Erro ao restaurar buffer de sincronização:', err);
+  }
   return new Map<string, { liquidTime: number, pomodoros: number }>();
 };
 
@@ -122,8 +129,9 @@ export function useTasks(userId: string | undefined) {
         );
         // Ordenar por createdAt (mais recentes primeiro)
         list.sort((a, b) => {
-          const aTime = a.createdAt?.toMillis?.() || 0;
-          const bTime = b.createdAt?.toMillis?.() || 0;
+          // Fallback para Date.now() caso o timestamp ainda seja nulo (pending write)
+          const aTime = a.createdAt?.toMillis?.() || Date.now();
+          const bTime = b.createdAt?.toMillis?.() || Date.now();
           return bTime - aTime;
         });
         setTasks(list);
@@ -187,7 +195,7 @@ export function useTasks(userId: string | undefined) {
 
   /**
    * Força a sincronização imediata de todo o buffer pendente com o Firestore.
-   * Percorre todas as tarefas que possuem tempo acumulado não salvo.
+   * PERFORMANCE FIXED: Agora usa writeBatch para atomicidade e velocidade.
    */
   const forceSync = async () => {
     if (isSyncing.current || pendingUpdates.size === 0 || !userId) return;
@@ -195,31 +203,29 @@ export function useTasks(userId: string | undefined) {
     isSyncing.current = true;
     setSyncStatus('syncing');
 
+    const batch = writeBatch(db);
     const entries = Array.from(pendingUpdates.entries());
     
     try {
-      await Promise.all(entries.map(async ([taskId, data]) => {
+      entries.forEach(([taskId, data]) => {
+        const docRef = doc(db, 'tasks', taskId);
         const docUpdates: any = { updatedAt: serverTimestamp() };
         if (data.liquidTime > 0) docUpdates.liquidTime = increment(data.liquidTime);
         if (data.pomodoros > 0) docUpdates.pomodoros = increment(data.pomodoros);
         
-        await updateDoc(doc(db, 'tasks', taskId), docUpdates);
-        pendingUpdates.delete(taskId);
-      }));
+        batch.update(docRef, docUpdates);
+      });
+
+      await batch.commit();
       
+      // Cleanup local buffer only after successful commit
+      pendingUpdates.clear();
       saveBuffer();
       setSyncStatus('synced');
     } catch (err) {
-      console.error("[useTasks] Batch Sync Error:", err);
-      entries.forEach(([taskId, data]) => {
-        const prev = pendingUpdates.get(taskId) || { liquidTime: 0, pomodoros: 0 };
-        pendingUpdates.set(taskId, {
-          liquidTime: prev.liquidTime + data.liquidTime,
-          pomodoros: prev.pomodoros + data.pomodoros
-        });
-      });
-      saveBuffer();
+      console.error("[useTasks] Batch Sync Error (Senior Audit):", err);
       setSyncStatus('error');
+      // No manual entry deletion here, so it remains in Map for next retry
     } finally {
       isSyncing.current = false;
     }
@@ -300,6 +306,8 @@ export function syncFocusSession(
   liquidTimeIncrement: number,
   pomodorosIncrement: number
 ): void {
+  // CRITICAL FIX: Ignore 'general' placeholder used for Free Focus
+  if (taskId === 'general' || !taskId) return;
   if (liquidTimeIncrement === 0 && pomodorosIncrement === 0) return;
 
   const current = pendingUpdates.get(taskId) || { liquidTime: 0, pomodoros: 0 };

@@ -14,7 +14,7 @@ import {
   increment 
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { useAuth } from './useAuth';
+import { useAuthContext } from '../context/AuthContext';
 import { EduStuff } from '../types';
 import { playSuccessSound } from '../utils/audio';
 
@@ -36,7 +36,7 @@ const getLocalISODate = () => {
 };
 
 export const useEduStuffs = () => {
-  const { user } = useAuth();
+  const { user } = useAuthContext();
   const [stuffs, setStuffs] = useState<EduStuff[]>([]);
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -174,13 +174,25 @@ export const useEduStuffs = () => {
     });
 
     const userRef = doc(db, 'users', user.uid);
-    const updatedXP = progress.xp + xpGain;
-    const hasLeveledUp = updatedXP >= progress.xpToNextLevel;
+    let newLevel = progress.level;
+    let currentTotalXP = progress.xp + xpGain;
+    let xpThreshold = progress.xpToNextLevel;
+    let levelUps = 0;
+
+    // Lógica para lidar com múltiplos Level Ups simultâneos
+    while (currentTotalXP >= xpThreshold) {
+      currentTotalXP -= xpThreshold;
+      levelUps++;
+      const nextLevel = newLevel + levelUps;
+      xpThreshold = Math.floor(LEVEL_BASE_XP * Math.pow(nextLevel, LEVEL_GROWTH_FACTOR));
+    }
+
+    const hasLeveledUp = levelUps > 0;
 
     try {
       await updateDoc(userRef, {
-        xp: hasLeveledUp ? updatedXP - progress.xpToNextLevel : updatedXP,
-        level: hasLeveledUp ? increment(1) : progress.level,
+        xp: currentTotalXP,
+        level: hasLeveledUp ? increment(levelUps) : progress.level,
         gems: increment(gemsGain),
         totalFocusMinutes: increment(minutes),
         streak: newStreak,

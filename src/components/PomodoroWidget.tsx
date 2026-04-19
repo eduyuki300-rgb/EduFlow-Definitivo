@@ -16,6 +16,7 @@ import type { Task } from '../types';
 import { useFocus } from '../context/FocusContext';
 import { cn } from '../lib/cn';
 import { SessionNotificationCard } from './focus/SessionNotificationCard';
+import { playSuccessSound } from '../utils/audio';
 
 interface PomodoroWidgetProps {
   tasks: Task[];
@@ -25,7 +26,6 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { activeTask, session, setActiveTask, setView, view } = useFocus();
 
@@ -57,20 +57,9 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   const isBreakMode = mode === 'pomodoro' && ['break', 'break-paused'].includes(status);
 
   useEffect(() => {
-    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-  }, []);
-
-  useEffect(() => {
     if (notification && view === 'widget') {
-      try {
-        if (audioRef.current) {
-          audioRef.current.currentTime = 0;
-          audioRef.current.play().catch(() => {});
-        }
-      } catch (error) {
-        console.error('Failed to play audio:', error);
-      }
-
+      // Usa o gerador de áudio interno para evitar problemas de cache com arquivos externos
+      playSuccessSound(false); // Som triunfal para fim de ciclo
       setIsExpanded(true);
     }
   }, [notification, view]);
@@ -93,10 +82,11 @@ export function PomodoroWidget({ tasks }: PomodoroWidgetProps) {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end">
+    <div className="fixed bottom-6 right-6 z-80 flex flex-col items-end">
       <AnimatePresence>
         {isExpanded && (
           <motion.div
+            id="active-task-card"
             initial={{ opacity: 0, y: 20, scale: 0.92, filter: 'blur(10px)' }}
             animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
             exit={{ opacity: 0, y: 20, scale: 0.92, filter: 'blur(10px)' }}

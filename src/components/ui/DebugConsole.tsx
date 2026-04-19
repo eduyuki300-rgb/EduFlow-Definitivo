@@ -36,9 +36,25 @@ export function DebugConsole() {
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleError);
 
+    // Watchdog Defender Listener
+    const handleWatchdog = (e: any) => {
+      const { elementId, reason } = e.detail;
+      const newError: DebugError = {
+        id: `watchdog-${elementId}-${Date.now()}`,
+        message: `WATCHDOG ALERT: Elemento #${elementId} -> ${reason}`,
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'warning'
+      };
+      setErrors(prev => [newError, ...prev].slice(0, 50));
+      setIsOpen(true);
+    };
+
+    window.addEventListener('watchdog-alert' as any, handleWatchdog);
+
     return () => {
       window.removeEventListener('error', handleError);
       window.removeEventListener('unhandledrejection', handleError);
+      window.removeEventListener('watchdog-alert' as any, handleWatchdog);
     };
   }, []);
 

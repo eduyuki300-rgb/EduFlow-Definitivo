@@ -53,6 +53,27 @@ export function FocusMode() {
     'Foco';
 
   // AUDIT FIX: UI/UX - Imersão Cromática Dinâmica
+  const handleClose = () => {
+    if (status !== 'idle' && status !== 'completed') {
+      const save = window.confirm('Encerrar sessão de foco?\n\nOK: Salvar progresso\nCancelar: Descartar');
+      if (save) persistAndClose();
+      else discardAndClose();
+    } else {
+      setView('widget');
+    }
+  };
+
+  // ⌨️ AUDIT FIX: ACESSIBILIDADE - Suporte a tecla ESC
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [status, persistAndClose, discardAndClose, setView]);
+
   const getBackgroundGradient = () => {
     if (status === 'running' || status === 'completed') {
       return isFocusMode
@@ -134,15 +155,7 @@ export function FocusMode() {
       )}>
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => {
-              if (status !== 'idle' && status !== 'completed') {
-                const save = window.confirm('Encerrar sessão de foco?\n\nOK: Salvar progresso\nCancelar: Descartar');
-                if (save) persistAndClose();
-                else discardAndClose();
-              } else {
-                setView('widget');
-              }
-            }}
+            onClick={handleClose}
             className={cn(
               "p-4 rounded-2xl transition-all active:scale-90",
               isLightMode ? "bg-gray-50 text-gray-400 hover:text-gray-900" : "bg-white/10 text-white/50 hover:text-white"

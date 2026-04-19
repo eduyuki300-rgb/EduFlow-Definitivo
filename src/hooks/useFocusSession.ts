@@ -272,17 +272,50 @@ export function useFocusSession(
     pageTitle: status === 'running' ? `(${formatTime(timeLeft)}) ${taskTitle}` : 'EduFlow',
     progress: ((focusDuration - timeLeft) / focusDuration) * 100,
     notification, toggleTimer, resetTimer,
-    skipToComplete: () => {}, startBreak: () => {},
+    skipToComplete: async () => {
+      if (statusRef.current === 'running') {
+        await completeFocusCycle();
+      }
+    },
+    startBreak: async () => {
+      clearTimer();
+      const now = new Date();
+      const endAt = new Date(now.getTime() + breakDuration * 1000);
+      setStatus('break');
+      setTimeLeft(breakDuration);
+      await syncToCloud({
+        status: 'break',
+        startTime: serverTimestamp(),
+        endAt: Timestamp.fromDate(endAt),
+        timeLeftAtPause: null
+      });
+    },
     dismissNotification: () => setNotification(null),
     advanceNotification: () => {
-      if (notification?.type === 'focus') setStatus('break');
-      else resetTimer();
+      if (notification?.id.startsWith('focus')) {
+        // Se concluiu foco, inicia pausa
+        clearTimer();
+        const now = new Date();
+        const endAt = new Date(now.getTime() + breakDuration * 1000);
+        setStatus('break');
+        setTimeLeft(breakDuration);
+        syncToCloud({
+          status: 'break',
+          startTime: serverTimestamp(),
+          endAt: Timestamp.fromDate(endAt),
+          timeLeftAtPause: null
+        });
+      } else {
+        resetTimer();
+      }
+      setNotification(null);
     },
-    // FIX 5: Explicit LiquidTime Protection
+    // FIX 5: Explicit LiquidTime Protection with atomic check
     persistAndClose: async () => {
        const unsynced = timeElapsedRef.current - lastSyncedRef.current;
        if (unsynced > 0) {
-         await syncFocusSession(taskId, unsynced, 0);
+         // Chamada síncrona ao buffer antes do reset local
+         syncFocusSession(taskId, unsynced, 0);
        }
        await resetTimer();
     },

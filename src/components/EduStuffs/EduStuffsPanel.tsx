@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { useEduStuffs } from '../../hooks/useEduStuffs';
 import { useTags } from '../../hooks/useTags';
+import { useUIWatcher } from '../../hooks/useUIWatcher';
+import { useAutoRecovery } from '../../hooks/useAutoRecovery';
 import { EduStuff } from '../../types';
 import { TaskDetailModal } from './TaskDetailModal';
 import { DeferredDrawer } from './DeferredDrawer';
@@ -78,6 +80,14 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
   const [newTitle, setNewTitle] = useState('');
   const [selectedTag, setSelectedTag] = useState<string>('pessoal');
   const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
+  
+  const panelId = 'planner-window';
+
+  // 1. Ativa o cão de guarda para este componente específico
+  useUIWatcher([panelId], 3000);
+  
+  // 2. Prepara a injeção de adrenalina (Autocura)
+  const { recoveryKey, isRecovering } = useAutoRecovery(panelId, 'FORCE_REMOUNT');
 
   const TAG_OPTIONS = useMemo(() => [
     ...DEFAULT_TAGS,
@@ -132,11 +142,15 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
     return { todayTasks, upcomingTasks };
   }, [filteredTodos]);
 
+  if (isRecovering) return null; // Seguro para retornar aqui (após todos os hooks)
+
   return (
     <motion.aside
+      key={`${panelId}-${recoveryKey}`}
+      id={panelId}
       initial={false}
-      animate={{ width: isOpen ? 460 : 0 }}
-      transition={{ type: 'spring', bounce: 0.1, duration: 0.6 }}
+      animate={{ width: isOpen ? (typeof window !== 'undefined' && window.innerWidth < 768 ? '100%' : 460) : 0 }}
+      transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
       className={cn(
         "h-full fixed right-0 top-0 flex flex-col z-40 pointer-events-none overflow-hidden",
         isOpen && "glass-premium border-l border-white/20 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] pointer-events-auto"
@@ -145,6 +159,8 @@ export function EduStuffsPanel({ isOpen, onToggle, userId }: { isOpen: boolean, 
       <AnimatePresence>
         {isOpen && (
           <motion.div 
+            key="edustuffs-content"
+            id="planner-content-area"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}

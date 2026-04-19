@@ -1,5 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import Confetti from 'react-confetti';
+import { useRef } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface LevelUpModalProps {
   level: number;
@@ -7,6 +9,9 @@ interface LevelUpModalProps {
 }
 
 export const LevelUpModal = ({ level, onClose }: LevelUpModalProps) => {
+  const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(modalRef, true);
+
   return (
     <AnimatePresence>
       <motion.div
@@ -19,6 +24,7 @@ export const LevelUpModal = ({ level, onClose }: LevelUpModalProps) => {
         <Confetti recycle={false} numberOfPieces={200} gravity={0.2} />
         
         <motion.div
+          ref={modalRef}
           initial={{ scale: 0.5, y: 50 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.5, y: 50 }}
