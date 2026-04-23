@@ -65,6 +65,7 @@ export default function App() {
   const { tasks, isLoading, error, syncStatus } = useTasksContext();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [taskToEdit, setTaskToEdit] = useState<Task | undefined>(undefined);
+  const [presetStatus, setPresetStatus] = useState<Status | undefined>(undefined);
   const [globalExpanded, setGlobalExpanded] = useState(() => {
     return localStorage.getItem('eduflow_global_expanded') === 'true';
   });
@@ -106,8 +107,9 @@ export default function App() {
     localStorage.setItem('eduflow_bgeffect', bgEffect);
   }, [bgEffect]);
 
-  const openCreateModal = () => {
+  const openCreateModal = (status?: Status) => {
     setTaskToEdit(undefined);
+    setPresetStatus(status);
     setIsModalOpen(true);
   };
 
@@ -154,6 +156,7 @@ export default function App() {
         openEditModal={openEditModal}
         isModalOpen={isModalOpen} setIsModalOpen={setIsModalOpen}
         taskToEdit={taskToEdit}
+        presetStatus={presetStatus}
         globalExpanded={globalExpanded}
         toggleGlobalExpanded={toggleGlobalExpanded}
       />
@@ -166,7 +169,7 @@ export default function App() {
 function AppContent({ 
   activeTab, setActiveTab, bgEffect, setBgEffect,
   progressHoje, hojeCount, concluidaHojeCount, openCreateModal, openEditModal,
-  isModalOpen, setIsModalOpen, taskToEdit, globalExpanded, toggleGlobalExpanded
+  isModalOpen, setIsModalOpen, taskToEdit, presetStatus, globalExpanded, toggleGlobalExpanded
 }: any) {
   const { user } = useAuthContext();
   const { tasks, isLoading, error, syncStatus } = useTasksContext();
@@ -425,7 +428,7 @@ function AppContent({
                 className="flex-1 flex flex-col min-h-0"
               >
                 {activeTab === 'hoje' && <HojeTab tasks={tasks} onEdit={openEditModal} userName={user.displayName} isEduStuffsOpen={isEduStuffsOpen} />}
-                {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} />}
+                {activeTab === 'semana' && <SemanaKanban tasks={tasks} onEdit={openEditModal} playSuccessSound={playSuccessSound} onCreateInColumn={(s) => openCreateModal(s)} />}
                 {activeTab === 'inbox' && <InboxTab tasks={tasks} onEdit={openEditModal} isEduStuffsOpen={isEduStuffsOpen} />}
                 {activeTab === 'concluida' && <HistoricoTab tasks={tasks} onEdit={openEditModal} userId={user.uid} isEduStuffsOpen={isEduStuffsOpen} />}
                 {activeTab === 'analytics' && <AnalyticsTab tasks={tasks} userName={user.displayName ?? undefined} />}
@@ -508,6 +511,7 @@ function AppContent({
         }} 
         user={user}
         taskToEdit={taskToEdit}
+        initialStatus={presetStatus}
       />
 
       <AnimatePresence>

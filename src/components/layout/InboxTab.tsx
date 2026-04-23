@@ -1,11 +1,12 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
-  Search, X, Inbox, LayoutList, Grid 
+  Search, X, Inbox, LayoutList, Grid, Target, CalendarDays, Edit2, CheckSquare, Square
 } from 'lucide-react';
-import { Task } from '../../types';
+import { Task, Status } from '../../types';
 import { SUBJECT_INFO } from '../../constants/subjects';
 import { cn } from '../../lib/cn';
-import { TaskCard } from './TaskCard';
+import { useTasksContext } from '../../context/TasksContext';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface InboxTabProps {
   tasks: Task[];
@@ -13,9 +14,87 @@ interface InboxTabProps {
   isEduStuffsOpen?: boolean;
 }
 
+interface InboxRowProps {
+  key?: string | number;
+  task: Task; 
+  onEdit: (task: Task) => void; 
+  onMove: (id: string, status: Status) => void | Promise<void>; 
+  isSelected: boolean; 
+  onToggleSelect: () => void;
+}
+
+function InboxRow({ 
+  task, 
+  onEdit, 
+  onMove, 
+  isSelected, 
+  onToggleSelect 
+}: InboxRowProps) {
+  const info = SUBJECT_INFO[task.subject] || SUBJECT_INFO['Geral'];
+  
+  return (
+    <div className={cn(
+      "flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border hover:shadow-md group transition-all relative overflow-hidden",
+      isSelected ? "border-orange-200 bg-orange-50/30" : "border-gray-100 hover:border-orange-100"
+    )}>
+      <button 
+        onClick={onToggleSelect}
+        className="shrink-0 text-gray-300 hover:text-orange-500 transition-colors"
+      >
+        {isSelected ? <CheckSquare size={20} className="text-orange-500" /> : <Square size={20} />}
+      </button>
+      
+      <span className="text-xl shrink-0">{info.emoji}</span>
+      
+      <div className="flex-1 min-w-0 pr-2">
+        <p className="font-bold text-sm text-gray-900 truncate">{task.title}</p>
+        <p className="text-[10px] text-gray-400 uppercase tracking-widest">{task.subject}</p>
+      </div>
+      
+      <div className="hidden sm:flex shrink-0 items-center justify-center w-16">
+        <span className={cn(
+          "px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest",
+          task.priority === 'alta' ? "bg-red-50 text-red-600" :
+          task.priority === 'media' ? "bg-amber-50 text-amber-600" :
+          "bg-emerald-50 text-emerald-600"
+        )}>
+          {task.priority === 'alta' ? 'Alta' : task.priority === 'media' ? 'Média' : 'Baixa'}
+        </span>
+      </div>
+      
+      {/* Quick Actions */}
+      <div className="flex shrink-0 gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <button 
+          onClick={() => onMove(task.id, 'hoje')} 
+          title="Mover para Hoje"
+          className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+        >
+          <Target size={16} />
+        </button>
+        <button 
+          onClick={() => onMove(task.id, 'semana')} 
+          title="Mover para Semana"
+          className="p-2 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-xl transition-all"
+        >
+          <CalendarDays size={16} />
+        </button>
+        <button 
+          onClick={() => onEdit(task)} 
+          title="Editar"
+          className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"
+        >
+          <Edit2 size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function InboxTab({ tasks, onEdit, isEduStuffsOpen }: InboxTabProps) {
-  const [isGrouped, setIsGrouped] = React.useState(() => localStorage.getItem('eduflow_inbox_grouped') !== 'false');
-  const [search, setSearch] = React.useState('');
+  const [isGrouped, setIsGrouped] = useState(() => localStorage.getItem('eduflow_inbox_grouped') !== 'false');
+  const [search, setSearch] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { moveTaskToStatus } = useTasksContext();
 
   React.useEffect(() => {
     localStorage.setItem('eduflow_inbox_grouped', String(isGrouped));
@@ -26,7 +105,7 @@ export function InboxTab({ tasks, onEdit, isEduStuffsOpen }: InboxTabProps) {
     (!search || t.title.toLowerCase().includes(search.toLowerCase()))
   );
   
-  const groupedTasks = React.useMemo(() => {
+  const groupedTasks = useMemo(() => {
     const groups: Record<string, Task[]> = {};
     inboxTasks.forEach(task => {
       if (!groups[task.subject]) groups[task.subject] = [];
@@ -35,8 +114,33 @@ export function InboxTab({ tasks, onEdit, isEduStuffsOpen }: InboxTabProps) {
     return Object.entries(groups).sort((a, b) => b[1].length - a[1].length);
   }, [inboxTasks]);
 
+  const handleToggleSelect = (id: string) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  };
+
+  const handleToggleAll = () => {
+    if (selectedIds.size === inboxTasks.length && inboxTasks.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(inboxTasks.map(t => t.id)));
+    }
+  };
+
+  const handleBatchMove = async (status: Status) => {
+    const promises = Array.from(selectedIds).map(id => moveTaskToStatus(id, status));
+    await Promise.all(promises);
+    setSelectedIds(new Set());
+  };
+
+  const handleSingleMove = async (id: string, status: Status) => {
+    await moveTaskToStatus(id, status);
+  };
+
   return (
-    <div className="flex h-full min-h-0 flex-col max-w-2xl mx-auto w-full px-1 pb-20">
+    <div className="flex h-full min-h-0 flex-col max-w-5xl mx-auto w-full px-1 pb-20 relative">
       <div className="relative mb-6">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={16} />
         <input
@@ -71,9 +175,20 @@ export function InboxTab({ tasks, onEdit, isEduStuffsOpen }: InboxTabProps) {
                   <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
                   CENTRO DE TRIAGEM
                 </h2>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-4.5">
-                  {inboxTasks.length} {inboxTasks.length === 1 ? 'item pendente' : 'itens pendentes'}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <button 
+                    onClick={handleToggleAll}
+                    className="p-1 -ml-1 text-gray-400 hover:text-orange-500 rounded transition-colors"
+                  >
+                    {selectedIds.size === inboxTasks.length && inboxTasks.length > 0
+                      ? <CheckSquare size={16} className="text-orange-500" />
+                      : <Square size={16} />
+                    }
+                  </button>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {inboxTasks.length} {inboxTasks.length === 1 ? 'item pendente' : 'itens pendentes'}
+                  </p>
+                </div>
               </div>
               <button 
                 onClick={() => setIsGrouped(!isGrouped)}
@@ -100,7 +215,7 @@ export function InboxTab({ tasks, onEdit, isEduStuffsOpen }: InboxTabProps) {
             )}
           </div>
 
-          <div className="space-y-8">
+          <div className="space-y-6">
             {isGrouped ? (
               groupedTasks.map(([subject, items]) => {
                 const info = SUBJECT_INFO[subject] || SUBJECT_INFO['Geral'];
@@ -111,24 +226,79 @@ export function InboxTab({ tasks, onEdit, isEduStuffsOpen }: InboxTabProps) {
                       <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{subject}</h3>
                       <div className="flex-1 h-px bg-gray-100" />
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {items.map(task => (
-                        <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                        <InboxRow 
+                          key={task.id} 
+                          task={task} 
+                          onEdit={onEdit} 
+                          onMove={handleSingleMove}
+                          isSelected={selectedIds.has(task.id)}
+                          onToggleSelect={() => handleToggleSelect(task.id)}
+                        />
                       ))}
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {inboxTasks.map(task => (
-                  <TaskCard key={task.id} task={task} onEdit={() => onEdit(task)} />
+                  <InboxRow 
+                    key={task.id} 
+                    task={task} 
+                    onEdit={onEdit}
+                    onMove={handleSingleMove}
+                    isSelected={selectedIds.has(task.id)}
+                    onToggleSelect={() => handleToggleSelect(task.id)}
+                  />
                 ))}
               </div>
             )}
           </div>
         </>
       )}
+
+      {/* Batch Action Bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-28 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-4 z-50 border border-gray-800"
+          >
+            <span className="text-sm font-bold bg-gray-800 px-3 py-1 rounded-lg">
+              {selectedIds.size} {selectedIds.size === 1 ? 'selecionado' : 'selecionados'}
+            </span>
+            
+            <div className="w-px h-6 bg-gray-700" />
+            
+            <button 
+              onClick={() => handleBatchMove('hoje')}
+              className="flex items-center gap-2 text-sm font-bold hover:text-orange-400 transition-colors"
+            >
+              <Target size={16} /> Hoje
+            </button>
+            <button 
+              onClick={() => handleBatchMove('semana')}
+              className="flex items-center gap-2 text-sm font-bold hover:text-indigo-400 transition-colors"
+            >
+              <CalendarDays size={16} /> Semana
+            </button>
+            
+            <div className="w-px h-6 bg-gray-700" />
+            
+            <button 
+              onClick={() => setSelectedIds(new Set())}
+              className="p-1 hover:text-rose-400 transition-colors"
+              title="Cancelar seleção"
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

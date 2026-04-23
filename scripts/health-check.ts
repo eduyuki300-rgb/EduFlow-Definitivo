@@ -22,7 +22,7 @@ async function runCheck() {
   // 1. Verificação de Tipagem (TSC)
   log("\n📦 Verificando Tipagem (TypeScript)...", COLORS.blue);
   try {
-    execSync('npx tsc --noEmit', { stdio: 'inherit' });
+    execSync('.\\node_modules\\.bin\\tsc.cmd --noEmit', { stdio: 'inherit' });
     log("✅ TypeScript OK", COLORS.green);
   } catch (e) {
     log("❌ Erros de Tipagem encontrados!", COLORS.red);

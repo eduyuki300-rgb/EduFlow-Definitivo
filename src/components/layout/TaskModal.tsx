@@ -17,9 +17,10 @@ interface TaskModalProps {
   onClose: (s?: string) => void;
   user: User;
   taskToEdit?: Task;
+  initialStatus?: Status;
 }
 
-export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps) {
+export function TaskModal({ isOpen, onClose, user, taskToEdit, initialStatus }: TaskModalProps) {
   const { createTask, updateTask, deleteTask } = useTasksContext();
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(modalRef, isOpen);
@@ -68,7 +69,7 @@ export function TaskModal({ isOpen, onClose, user, taskToEdit }: TaskModalProps)
         setTitle('');
         setSubject('Geral');
         setPriority('media');
-        setStatus('inbox');
+        setStatus(initialStatus ?? 'inbox');
         setSubtasks([]);
         setQuestionsTotal(0);
         setQuestionsCorrect(0);

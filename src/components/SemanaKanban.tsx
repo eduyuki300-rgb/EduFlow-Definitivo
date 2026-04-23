@@ -2,17 +2,11 @@ import React, { useState, useMemo, memo, useCallback } from 'react';
 import { motion } from 'motion/react';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Task, Status } from '../types';
-import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
 import { Search, Star, Pencil, Clock, Target, Play, CircleOff, Plus } from 'lucide-react';
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { useFocus } from '../context/FocusContext';
+import { useTasksContext } from '../context/TasksContext';
 import { SUBJECT_INFO } from '../constants/subjects';
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { cn } from '../lib/cn';
 
 const COLUMNS: { id: Status; title: string; color: string }[] = [
   { id: 'inbox', title: '📥 Inbox', color: 'bg-white' },
@@ -148,8 +142,9 @@ const TaskCard = memo(({ task, index, onEdit, setActiveTask }: {
 
 TaskCard.displayName = "TaskCard";
 
-export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void }) {
+export function SemanaKanban({ tasks, onEdit, playSuccessSound, onCreateInColumn }: { tasks: Task[], onEdit: (task: Task) => void, playSuccessSound: () => void, onCreateInColumn: (s: Status) => void }) {
   const { setActiveTask } = useFocus();
+  const { moveTaskToStatus } = useTasksContext();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterSubject, setFilterSubject] = useState<string>('all');
 
@@ -181,15 +176,12 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
 
     const newStatus = destination.droppableId as Status;
     try {
-      await updateDoc(doc(db, 'tasks', draggableId), { 
-        status: newStatus, 
-        updatedAt: serverTimestamp() 
-      });
+      await moveTaskToStatus(draggableId, newStatus);
       if (newStatus === 'concluida' && source.droppableId !== 'concluida') playSuccessSound();
     } catch (error) {
       console.error("Error updating task status:", error);
     }
-  }, [playSuccessSound]);
+  }, [playSuccessSound, moveTaskToStatus]);
 
   return (
     <div className="flex flex-col flex-1 min-h-0 bg-white/40 backdrop-blur-sm rounded-3xl border border-gray-100/50 shadow-xl overflow-hidden">
@@ -229,9 +221,14 @@ export function SemanaKanban({ tasks, onEdit, playSuccessSound }: { tasks: Task[
                 <div key={column.id} className="flex flex-col shrink-0 w-80 snap-start h-full">
                   <div className="flex items-center justify-between mb-4 px-3">
                     <h3 className="font-bold text-gray-400 text-[10px] uppercase tracking-[0.2em]">{column.title}</h3>
-                    <span className="bg-white/60 text-gray-500 text-[10px] font-black px-2.5 py-1 rounded-xl border border-gray-100 shadow-xs tabular-nums">
-                      {columnTasks.length}
-                    </span>
+                    <div className="flex items-center gap-2">
+                       <button onClick={() => onCreateInColumn(column.id)} className="p-1 hover:bg-black/5 text-gray-400 hover:text-gray-900 rounded-lg transition-colors" title="Adicionar tarefa aqui">
+                         <Plus size={14} strokeWidth={3} />
+                       </button>
+                       <span className="bg-white/60 text-gray-500 text-[10px] font-black px-2.5 py-1 rounded-xl border border-gray-100 shadow-xs tabular-nums">
+                         {columnTasks.length}
+                       </span>
+                    </div>
                   </div>
                   
                   <Droppable droppableId={column.id}>

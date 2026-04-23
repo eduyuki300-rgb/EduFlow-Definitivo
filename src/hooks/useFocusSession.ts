@@ -92,7 +92,7 @@ export function useFocusSession(
   const timeElapsedRef = useRef(timeElapsed);
   const lastSyncedRef = useRef(lastSyncedLiquidTime);
   const focusCyclesRef = useRef(focusCycles);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const workerRef = useRef<Worker | null>(null);
 
   // CONTROLADORES DE MUTEX (AUDIT FIX 1 & 2)
   const [isLocalUpdating, setIsLocalUpdating] = useState(false);
@@ -170,9 +170,8 @@ export function useFocusSession(
   }, [userId, taskId, taskTitle, applyCloudUpdate]);
 
   const clearTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (workerRef.current) {
+      workerRef.current.postMessage('stop');
     }
   }, []);
 
@@ -234,6 +233,7 @@ export function useFocusSession(
     } else if (currentStatus === 'running') {
       clearTimer();
       targetEndTimeRef.current = null;
+      sessionStartTimestampRef.current = null; // Bugfix: evitamos acumular tempo durante pause
       setStatus('paused');
       await syncToCloud({
         status: 'paused',
@@ -243,36 +243,49 @@ export function useFocusSession(
     }
   }, [focusDuration, syncToCloud, clearTimer]);
 
-  // TICKER ABSOLUTO: Previne drift de intervalos e re-renders
+  // INICIALIZA WORKER (ANTI-DRIFT EM BACKGROUND)
+  useEffect(() => {
+    const code = `
+      let timerId = null;
+      self.onmessage = function(e) {
+        if (e.data === 'start') {
+          if (!timerId) timerId = setInterval(() => self.postMessage('tick'), 250);
+        } else if (e.data === 'stop') {
+          if (timerId) { clearInterval(timerId); timerId = null; }
+        }
+      };
+    `;
+    const blob = new Blob([code], { type: 'application/javascript' });
+    workerRef.current = new Worker(URL.createObjectURL(blob));
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
+
+  // TICKER ABSOLUTO: Previne drift de tab suspensa
   useEffect(() => {
     if (status !== 'running' && status !== 'break') {
       clearTimer();
       return;
     }
 
-    // Garante que temos um target se viemos de um re-render/reconexão
     if (!targetEndTimeRef.current) {
        targetEndTimeRef.current = Date.now() + timeLeftRef.current * 1000;
-       // Se o status é running mas não temos start absolute, recuperamos do timeElapsed
        if (status === 'running' && !sessionStartTimestampRef.current) {
           sessionStartTimestampRef.current = Date.now() - (timeElapsedRef.current * 1000);
        }
     }
 
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    // Usa um intervalo menor (200ms) para alta precisão, mas atualiza o estado apenas no segundo
-    intervalRef.current = setInterval(() => {
+    const handleTick = () => {
       const now = Date.now();
       const target = targetEndTimeRef.current || now;
       const remaining = Math.max(0, Math.ceil((target - now) / 1000));
       
-      // Só atualiza o estado se o valor mudar (Audit Fix: Prevenção de Rerender Loop)
       if (remaining !== timeLeftRef.current) {
         setTimeLeft(remaining);
       }
 
-      // Calcula tempo decorrido absoluto
       if (sessionStartTimestampRef.current) {
         const elapsed = Math.floor((now - sessionStartTimestampRef.current) / 1000);
         if (elapsed !== timeElapsedRef.current) {
@@ -285,13 +298,23 @@ export function useFocusSession(
         if (statusRef.current === 'running') completeFocusCycle();
         else resetTimer();
       }
-    }, 200);
+    };
+
+    if (workerRef.current) {
+      workerRef.current.onmessage = handleTick;
+      workerRef.current.postMessage('start');
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        handleTick(); // Força reconciliação imediata ao voltar pra aba
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearTimer();
     };
   }, [status, clearTimer, completeFocusCycle, resetTimer]);
 

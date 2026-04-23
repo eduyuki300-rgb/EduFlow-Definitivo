@@ -6,7 +6,7 @@ console.log(chalk.cyan.bold('\n🚀 Iniciando EduFlow UI Smoke Test...\n'));
 try {
   // Executa os testes de forma headless e extrai o output
   // O --reporter=list gera um output mais limpo para parseamento
-  execSync('npx playwright test tests/stability.spec.ts --reporter=list', { 
+  execSync('.\\node_modules\\.bin\\playwright.cmd test tests/stability.spec.ts --reporter=list', {
     stdio: 'pipe',
     encoding: 'utf-8' 
   });

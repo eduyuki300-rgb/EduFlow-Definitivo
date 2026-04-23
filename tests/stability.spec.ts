@@ -18,7 +18,7 @@ test.beforeEach(async ({ page, context }) => {
   });
   
   // Porta do dashboard do EduFlow
-  await page.goto('http://localhost:3000/dashboard');
+  await page.goto('/');
   
   // Debug: Verifica o que está sendo renderizado
   const isDashboard = await page.locator('#nav-bar').isVisible();

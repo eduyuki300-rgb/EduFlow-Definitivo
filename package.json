@@ -11,7 +11,7 @@
     "lint": "tsc --noEmit",
     "health-check": "tsx scripts/health-check.ts",
     "qa:smoke": "node scripts/smoke-test.mjs",
-    "start": "node server.ts"
+    "start": "tsx server.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

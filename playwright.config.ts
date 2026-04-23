@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:3000',
     trace: 'on-first-retry',
   },
   projects: [
@@ -19,8 +19,8 @@ export default defineConfig({
   ],
   // Garante que o servidor esteja rodando se necessário (opcional, já está no terminal)
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    command: '.\\node_modules\\.bin\\tsx.cmd server.ts',
+    url: 'http://127.0.0.1:3000/api/health',
     reuseExistingServer: !process.env.CI,
   },
 });
